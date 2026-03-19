@@ -32,10 +32,24 @@ cd physics
 pip install -r requirements.txt
 ```
 
-### 5. Run
+### 🌐 Web App (Flask)
+
+The system includes a premium dark-mode web interface, perfect for deployment or local browser use.
+
+### Local Run
 ```bash
-python main.py
+python app.py
+# Opens at http://127.0.0.1:5000
 ```
+
+### ☁️ Cloud Deployment (pxxl.app / Heroku)
+The app is pre-configured for **pxxl.app** or any platform using a `Procfile`.
+
+1.  **Get a Gemini API Key**: [Google AI Studio](https://aistudio.google.com/)
+2.  **Set Environment Variables** on your hosting platform:
+    -   `GEMINI_API_KEY`: Your Google API key
+    -   `LLM_BACKEND`: `gemini` (forces cloud mode)
+3.  **Deploy**: Push your repository to GitHub and connect it to pxxl.app.
 
 ## 🤖 Agents
 
@@ -48,6 +62,8 @@ python main.py
 | 📊 **Progress Tracker** | Record keeper & analyst | SQLite persistence, reports, session artifacts |
 
 ## 📚 Commands
+
+Available in both CLI and Web App:
 
 ### Math & Practice
 ```
@@ -83,24 +99,21 @@ python main.py
 
 ```
 physics/
-├── main.py                    # Entry point & orchestrator
-├── requirements.txt           # Dependencies
+├── app.py                     # Flask web server
+├── main.py                    # CLI orchestrator & shared logic
+├── requirements.txt           # Dependencies (Flask + Gemini + Ollama)
 ├── agents/
-│   ├── base.py               # Base agent + Ollama client
-│   ├── companion.py          # Daily Companion Agent
-│   ├── math_tutor.py         # Math Tutor Agent
-│   ├── physics_supervisor.py # Physics Supervisor Agent
-│   ├── hardware_bridge.py    # Hardware Bridge Agent
-│   └── progress_tracker.py   # Progress Tracker Agent
+│   ├── base.py               # Dual Backend (Gemini/Ollama) client
+│   └── ...                   # Specialized agents
 ├── tools/
-│   ├── math_verifier.py      # SymPy answer verification
-│   ├── problem_generator.py  # Practice problem templates
-│   └── progress_db.py        # SQLite progress database
-├── integrations/
-│   ├── telegram_bot.py       # Optional Telegram reminders
-│   └── web_ui.py             # Optional Gradio web UI
-└── memory/
-    └── progress.db            # Created at runtime
+│   └── ...                   # Math/Physics/DB tools
+├── templates/
+│   └── index.html            # Premium Chat UI
+├── static/
+│   ├── css/style.css         # Dark-mode styling
+│   └── js/chat.js            # Frontend interactivity
+├── Procfile                   # pxxl.app deployment config
+└── runtime.txt                # Python version config
 ```
 
 ## 🌐 Optional: Web UI
@@ -124,6 +137,13 @@ export TELEGRAM_CHAT_ID="your-chat-id"
 The system works without internet after initial Ollama setup:
 - **With Ollama:** Full AI tutoring, Socratic questioning, explanations
 - **Without Ollama:** Math verification (SymPy), problem generation, progress tracking
+
+## 🔌 LLM Backends
+
+The system automatically detects the best available backend:
+1.  **Gemini (Cloud)**: Uses `GEMINI_API_KEY` env var. Fast, free, and works on pxxl.app.
+2.  **Ollama (Local)**: Uses local running models. Best for offline use.
+3.  **Offline**: No AI chat, but math tools and progress tracking still work!
 
 ## 🌍 Vision
 

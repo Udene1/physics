@@ -1,11 +1,12 @@
 # Core
-ollama>=0.4.0
-sympy>=1.13
-numpy>=1.26
-matplotlib>=3.8
+ollama
+sympy
+numpy
+matplotlib
 
-# Optional - Web UI
-# gradio>=4.0
-
-# Optional - Telegram integration
-# python-telegram-bot>=21.0
+# Web App & Gemini
+flask
+google-generativeai
+gunicorn
+python-dotenv
+requests

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Learning Companion | Math · Physics · Hardware</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">🧠</div>
+                <h1>Companion</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" onclick="showSection('chat')">
+                    <span class="icon">💬</span> Chat
+                </button>
+                <button class="nav-item" onclick="loadReport()">
+                    <span class="icon">📊</span> Progress
+                </button>
+                <button class="nav-item" onclick="loadCurriculum()">
+                    <span class="icon">⚛️</span> Curriculum
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="status-badge">
+                    <span class="status-dot"></span>
+                    <span id="backend-info">{{ backend or 'Offline' }}</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Chat Section -->
+            <section id="chat-section" class="content-section active">
+                <div class="chat-header">
+                    <h2>Learning Session</h2>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="clearChat()">Clear Hist</button>
+                    </div>
+                </div>
+                
+                <div id="chat-messages" class="chat-messages">
+                    <!-- Messages will be injected here -->
+                    <div class="message assistant-message">
+                        <div class="message-label">🌟 Companion</div>
+                        <div class="message-content">
+                            Hello! I'm your AI Learning Companion. Ready to dive into Math, Physics, or Hardware today? 🚀
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="quick-commands">
+                        <button onclick="setInput('/problems algebra')">/problems</button>
+                        <button onclick="setInput('/curriculum')">/curriculum</button>
+                        <button onclick="setInput('/builds')">/builds</button>
+                        <button onclick="setInput('/report')">/report</button>
+                    </div>
+                    <form id="chat-form" class="chat-form">
+                        <input type="text" id="user-input" placeholder="Ask me something or use a command..." autocomplete="off">
+                        <button type="submit" id="send-btn">Send</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Report Section (Hidden by default) -->
+            <section id="report-section" class="content-section">
+                <div class="chat-header">
+                    <h2>Progress Report</h2>
+                    <button class="btn btn-secondary" onclick="showSection('chat')">Back to Chat</button>
+                </div>
+                <div id="report-content" class="report-content markdown-body">
+                    Loading report...
+                </div>
+            </section>
+
+             <!-- Curriculum Section (Hidden by default) -->
+             <section id="curriculum-section" class="content-section">
+                <div class="chat-header">
+                    <h2>Physics Curriculum</h2>
+                    <button class="btn btn-secondary" onclick="showSection('chat')">Back to Chat</button>
+                </div>
+                <div id="curriculum-content" class="report-content markdown-body">
+                    Loading curriculum...
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
