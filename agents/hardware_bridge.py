@@ -101,8 +101,12 @@ Include safety notes where relevant.
 class HardwareBridgeAgent(BaseAgent):
     """Hardware Bridge — connects learning to practical builds."""
 
-    def __init__(self, db=None, model: str = None):
-        super().__init__(name="HardwareBridge", system_prompt=SYSTEM_PROMPT, db=db, model=model)
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="HardwareBridge",
+            system_prompt=SYSTEM_PROMPT,
+            **kwargs
+        )
 
     def chat(self, user_msg: str, context: str = "") -> str:
         msg_lower = user_msg.lower().strip()

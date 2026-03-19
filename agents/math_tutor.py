@@ -51,12 +51,11 @@ FORMAT:
 class MathTutorAgent(BaseAgent):
     """Math Tutor — Socratic teaching, problem generation, answer verification."""
 
-    def __init__(self, db=None, model: str = None):
+    def __init__(self, **kwargs):
         super().__init__(
             name="MathTutor",
             system_prompt=SYSTEM_PROMPT,
-            db=db,
-            model=model,
+            **kwargs
         )
         self.verifier = MathVerifier()
         self.generator = ProblemGenerator()

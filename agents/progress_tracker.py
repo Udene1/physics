@@ -27,8 +27,12 @@ Always be encouraging about growth while honest about gaps.
 class ProgressTrackerAgent(BaseAgent):
     """Progress Tracker — logging, reporting, analysis."""
 
-    def __init__(self, db=None, model: str = None):
-        super().__init__(name="ProgressTracker", system_prompt=SYSTEM_PROMPT, db=db, model=model)
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="ProgressTracker",
+            system_prompt=SYSTEM_PROMPT,
+            **kwargs
+        )
 
     def chat(self, user_msg: str, context: str = "") -> str:
         msg_lower = user_msg.lower().strip()

@@ -62,12 +62,11 @@ Always end with an actionable suggestion or question to keep momentum going.
 class CompanionAgent(BaseAgent):
     """Daily Companion — motivation, progress review, micro-goal setting."""
 
-    def __init__(self, db=None, model: str = None):
+    def __init__(self, **kwargs):
         super().__init__(
             name="Companion",
             system_prompt=SYSTEM_PROMPT,
-            db=db,
-            model=model,
+            **kwargs
         )
 
     def greet(self) -> str:
