@@ -26,10 +26,23 @@ class MathVerifier:
     """Symbolic and numeric math answer verification."""
 
     @staticmethod
+    def _clean_input(expr_str: str) -> str:
+        """Replace unicode superscripts and common notation with Python equivalents."""
+        replacements = {
+            "⁰": "**0", "¹": "**1", "²": "**2", "³": "**3", "⁴": "**4",
+            "⁵": "**5", "⁶": "**6", "⁷": "**7", "⁸": "**8", "⁹": "**9",
+            "^": "**",
+        }
+        for old, new in replacements.items():
+            expr_str = expr_str.replace(old, new)
+        return expr_str
+
+    @staticmethod
     def parse(expr_str: str) -> sp.Expr:
         """Parse a string expression into a SymPy expression."""
         try:
-            return parse_expr(expr_str, local_dict=SYMBOL_MAP, transformations=TRANSFORMS)
+            cleaned = MathVerifier._clean_input(expr_str)
+            return parse_expr(cleaned, local_dict=SYMBOL_MAP, transformations=TRANSFORMS)
         except Exception as e:
             raise ValueError(f"Could not parse '{expr_str}': {e}")
 
