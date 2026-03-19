@@ -28,6 +28,13 @@ class MathVerifier:
     @staticmethod
     def _clean_input(expr_str: str) -> str:
         """Replace unicode superscripts and common notation with Python equivalents."""
+        # Handle 'x = ...' or 'y = ...' by stripping the prefix
+        if "=" in expr_str:
+            parts = expr_str.split("=", 1)
+            # If the LHS is just a symbol name (like 'x'), take the RHS
+            if parts[0].strip().isalpha():
+                expr_str = parts[1]
+
         replacements = {
             "⁰": "**0", "¹": "**1", "²": "**2", "³": "**3", "⁴": "**4",
             "⁵": "**5", "⁶": "**6", "⁷": "**7", "⁸": "**8", "⁹": "**9",
@@ -35,7 +42,7 @@ class MathVerifier:
         }
         for old, new in replacements.items():
             expr_str = expr_str.replace(old, new)
-        return expr_str
+        return expr_str.strip()
 
     @staticmethod
     def parse(expr_str: str) -> sp.Expr:
