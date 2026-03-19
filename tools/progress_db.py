@@ -20,7 +20,7 @@ class ProgressDB:
 
     def __init__(self, db_path: str = DEFAULT_DB_PATH):
         os.makedirs(os.path.dirname(db_path) if db_path != ":memory:" else ".", exist_ok=True)
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
 
