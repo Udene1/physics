@@ -5,9 +5,12 @@ Provides a modern web interface for the multi-agent system.
 Deployable to pxxl.app.
 """
 
-import os
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
 from main import init_agents, handle_message
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 
