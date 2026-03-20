@@ -99,7 +99,7 @@ class MathTutorAgent(BaseAgent):
             
         first = problems[0]
         return (
-            f"📝 Let's practice **{topic}**!\n\n"
+            f"📝 Let's practice **{topic_name}**!\n\n"
             f"**Problem 1:** {first['statement']}\n\n"
             "Try solving it and type `/verify <your_answer>` to check!"
         )
