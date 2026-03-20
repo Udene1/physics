@@ -111,7 +111,7 @@ AGENT_LABELS = {
 }
 
 
-def handle_message(msg: str, agents: dict, db) -> tuple[str, str]:
+def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, str]:
     """
     Process a user message and return (agent_label, response).
     Used by both CLI and Flask web app.
@@ -122,19 +122,19 @@ def handle_message(msg: str, agents: dict, db) -> tuple[str, str]:
         return "📚 Help", HELP_TEXT
 
     if msg_lower == "/curriculum":
-        return "⚛️ PhysicsSupervisor", agents["physics"].get_curriculum_overview()
+        return "⚛️ PhysicsSupervisor", agents["physics"].get_curriculum_overview(student_id)
 
     if msg_lower.startswith("/study "):
         topic = msg_lower.replace("/study ", "").strip()
-        return "⚛️ PhysicsSupervisor", agents["physics"].get_study_tasks(topic)
+        return "⚛️ PhysicsSupervisor", agents["physics"].get_study_tasks(student_id, topic)
 
     if msg_lower.startswith("/prereq "):
         topic = msg_lower.replace("/prereq ", "").strip()
-        result = agents["physics"].check_prerequisites(topic)
+        result = agents["physics"].check_prerequisites(student_id, topic)
         return "⚛️ PhysicsSupervisor", result["message"]
 
     if msg_lower == "/goals":
-        goals = db.get_pending_goals()
+        goals = db.get_pending_goals(student_id)
         if goals:
             lines = ["📋 **Pending Goals:**"]
             for g in goals:
@@ -146,9 +146,14 @@ def handle_message(msg: str, agents: dict, db) -> tuple[str, str]:
     intent = classify_intent(msg)
     agent = agents[intent]
     label = AGENT_LABELS.get(intent, "🤖 Agent")
-    response = agent.chat(msg)
+    
+    # Update student activity/streak
+    db.update_streak(student_id)
+    
+    response = agent.chat(msg, student_id=student_id)
 
     db.log_interaction(
+        student_id=student_id,
         agent=agent.name, topic=intent,
         user_input=msg[:500], agent_response=response[:500], result="ok",
     )

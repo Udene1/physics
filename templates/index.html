@@ -32,11 +32,20 @@
             </nav>
 
             <div class="sidebar-footer">
-                <div class="status-badge">
-                    <span class="status-dot"></span>
-                    <span id="backend-info">{{ backend or 'Offline' }}</span>
-                </div>
+            <div id="student-info">
+                <strong>👤 <span id="current-nickname">{{ session.get('nickname', 'Guest') }}</span></strong>
+                <span>🔥 <span id="current-streak">{{ session.get('streak', 0) }}</span> day streak</span>
             </div>
+            <div class="footer-links">
+                <a href="{{ url_for('profile_page') }}" class="footer-link">🔄 Switch</a>
+                <a href="{{ url_for('download_report') }}" class="footer-link">📄 PDF</a>
+                <a href="{{ url_for('logout') }}" class="footer-link">🚪 Logout</a>
+            </div>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span id="backend-info">{{ backend or 'Offline' }}</span>
+            </div>
+        </div>
         </aside>
 
         <!-- Main Content -->

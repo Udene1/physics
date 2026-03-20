@@ -3,8 +3,10 @@ agents/hardware_bridge.py — Hardware Bridge Agent.
 
 Suggests practical hardware builds tied to current physics/math mastery.
 Provides component lists (Nigeria-available), starter code, and impact framing.
+Supports multi-student project tracking.
 """
 
+import json
 from .base import BaseAgent
 
 HARDWARE_PROJECTS = {
@@ -21,20 +23,6 @@ HARDWARE_PROJECTS = {
         ],
         "total_cost": "~N1,100 (~$1.50)",
         "schematic": "9V(+) -> 220ohm -> LED(+) -> LED(-) -> Battery(-)",
-    },
-    "arduino_voltmeter": {
-        "name": "Arduino Digital Voltmeter",
-        "level": "intermediate",
-        "required_topics": ["electric_circuits", "electrostatics"],
-        "min_mastery": 50,
-        "description": "Use Arduino ADC to measure voltage (0-5V) and display on serial monitor.",
-        "impact": "Cheap voltage monitoring for solar panels in rural areas!",
-        "components": [
-            "1x Arduino Uno/Nano — N3,000-5,000", "2x 10k ohm resistors — N20",
-            "Breadboard + wires — N700", "USB cable — N300",
-        ],
-        "total_cost": "~N5,000 (~$6)",
-        "schematic": "V_source -> R1(10k) -> Junction -> R2(10k) -> GND; Junction -> A0",
     },
     "soil_moisture_sensor": {
         "name": "Soil Moisture Sensor for Agriculture",
@@ -64,37 +52,16 @@ HARDWARE_PROJECTS = {
         "total_cost": "~N250 manual",
         "schematic": "Mount -> String(L) -> Weight; T = 2*pi*sqrt(L/g)",
     },
-    "temperature_logger": {
-        "name": "Temperature Data Logger",
-        "level": "intermediate",
-        "required_topics": ["temperature_heat", "electric_circuits"],
-        "min_mastery": 45,
-        "description": "Log temperature over time using LM35 sensor and Arduino.",
-        "impact": "Monitor storage temps for medicine/vaccines in clinics!",
-        "components": [
-            "1x Arduino Uno/Nano — N3,000-5,000", "1x LM35 sensor — N300",
-            "Breadboard + wires — N700",
-        ],
-        "total_cost": "~N5,000 (~$6)",
-        "schematic": "LM35: Vs->5V, Vout->A0, GND->GND; Output 10mV per degree C",
-    },
 }
 
 SYSTEM_PROMPT = """You are the Hardware Bridge Agent — connecting physics/math knowledge to
 REAL-WORLD hardware builds that improve lives in resource-limited settings like Benin City, Nigeria.
 
 YOUR ROLE:
-1. SUGGEST hardware projects matched to the student's current mastery level.
-2. PROVIDE build instructions: components (with Nigerian prices in Naira), schematics, code.
-3. FRAME every project in terms of REAL IMPACT — who benefits and how.
-4. Ensure components are AFFORDABLE and AVAILABLE in Nigeria.
-5. Provide Python/Arduino starter code as learning scaffolds (leave gaps for learning).
-6. Only suggest builds the Physics Supervisor has APPROVED.
-7. Always explain the underlying physics of each component/circuit.
-8. Connect to the vision: every device built is a step toward helping people.
-
-Use clear sections: Components, Schematic, Code, Impact.
-Include safety notes where relevant.
+1. SUGGEST hardware projects matched to the student's mastery.
+2. PROVIDE build instructions with Nigerian prices (Naira).
+3. FRAME every project in terms of REAL IMPACT.
+4. Deliver high-quality, local build guides.
 """
 
 
@@ -108,67 +75,62 @@ class HardwareBridgeAgent(BaseAgent):
             **kwargs
         )
 
-    def chat(self, user_msg: str, context: str = "") -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
         msg_lower = user_msg.lower().strip()
-        if msg_lower in ("/builds", "/projects", "show builds", "what can i build"):
-            return self.list_available_projects()
+        if msg_lower in ("/builds", "/projects", "show builds"):
+            return self.list_available_projects(student_id)
         if msg_lower.startswith("/build "):
             key = msg_lower.replace("/build ", "").strip().replace(" ", "_")
-            return self.get_project_details(key)
-        projects_ctx = self._build_projects_context()
+            return self.get_project_details(student_id, key)
+        
+        projects_ctx = self._build_projects_context(student_id)
         full_ctx = f"{context}\n\n{projects_ctx}" if context else projects_ctx
-        return super().chat(user_msg, full_ctx)
+        return super().chat(user_msg, full_ctx, student_id=student_id)
 
-    def list_available_projects(self) -> str:
-        lines = ["🔧 **Available Hardware Projects**\n"]
+    def list_available_projects(self, student_id: int) -> str:
+        lines = ["🔧 **Hardware Build Suggestions**\n"]
+        
+        # 1. Vetted Core Projects
+        lines.append("### 🏆 Vetted Core Projects")
         for key, p in HARDWARE_PROJECTS.items():
             ready = True
             if self.db:
                 for topic in p["required_topics"]:
-                    m = self.db.get_mastery(topic)
+                    m = self.db.get_mastery(student_id, topic)
                     if not m or m["score"] < p["min_mastery"]:
                         ready = False
                         break
             status = "✅ Ready" if ready else "🔒 Locked"
-            lines.append(
-                f"  {status} **{p['name']}** ({p['level']})\n"
-                f"        Cost: {p['total_cost']} | Topics: {', '.join(p['required_topics'])}\n"
-                f"        🌍 {p['impact']}\n"
-            )
-        lines.append("\nUse `/build <project_name>` for full details (e.g. `/build soil_moisture_sensor`).")
+            lines.append(f"  {status} **{p['name']}**\n        🌍 {p['impact']}")
+
+        # 2. Dynamic Topic-Based Suggestions
+        if self.db:
+            all_topics = self.db.get_all_topics()
+            dynamic = []
+            for t in all_topics:
+                if t["build_hint"] and t["category"] == "physics":
+                    m = self.db.get_mastery(student_id, t["name"])
+                    score = m["score"] if m else 0
+                    if score >= 50: # Standard Hardware Gate
+                        dynamic.append(f"  ✨ **{t['build_hint']}** (Based on your {t['name']} mastery!)")
+            
+            if dynamic:
+                lines.append("\n### 💡 Experimental Suggestions")
+                lines.extend(dynamic)
+
         return "\n".join(lines)
 
-    def get_project_details(self, project_key: str) -> str:
+    def get_project_details(self, student_id: int, project_key: str) -> str:
         project = HARDWARE_PROJECTS.get(project_key)
-        if not project:
-            for key, proj in HARDWARE_PROJECTS.items():
-                if project_key in key:
-                    project = proj
-                    break
-        if not project:
-            return f"Project '{project_key}' not found. Use `/builds` to see all."
-
-        lines = [
-            f"# 🔧 {project['name']}\n",
-            f"**Level:** {project['level'].title()} | **Cost:** {project['total_cost']}\n",
-            f"## 🌍 Impact\n{project['impact']}\n",
-            "## 📋 Components",
-        ]
-        for c in project["components"]:
-            lines.append(f"  • {c}")
-        lines.append(f"\n## 📐 Schematic\n```\n{project['schematic']}\n```")
-        lines.append(f"\n## 📝 Description\n{project['description']}")
-        lines.append("\n*Ask me for starter code or simulation ideas for this project!*")
+        if not project: return "Project not found."
+        
+        lines = [f"# 🔧 {project['name']}\n", f"**Cost:** {project['total_cost']}\n", "## 🌍 Impact\n" + project['impact']]
+        lines.append("\n## 📋 Components")
+        for c in project["components"]: lines.append(f"  • {c}")
         return "\n".join(lines)
 
-    def _build_projects_context(self) -> str:
-        if not self.db:
-            return ""
-        completed = self.db.get_projects(status="completed")
-        in_progress = self.db.get_projects(status="in_progress")
-        parts = []
-        if completed:
-            parts.append(f"Completed projects: {len(completed)}")
-        if in_progress:
-            parts.append(f"In-progress projects: {len(in_progress)}")
-        return "\n".join(parts) if parts else "No hardware projects started yet."
+    def _build_projects_context(self, student_id: int) -> str:
+        if not self.db: return ""
+        completed = self.db.get_projects(student_id, status="completed")
+        in_progress = self.db.get_projects(student_id, status="in_progress")
+        return f"Projects: {len(completed)} completed, {len(in_progress)} in progress."

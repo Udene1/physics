@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Who is learning today? | AI Learning Companion</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .profile-container {
+            max-width: 800px;
+            margin: 100px auto;
+            padding: 2rem;
+            text-align: center;
+        }
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1.5rem;
+            margin: 3rem 0;
+        }
+        .profile-card {
+            background-color: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        .profile-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-blue);
+            background-color: rgba(56, 189, 248, 0.05);
+        }
+        .profile-avatar {
+            font-size: 3rem;
+            background: rgba(255, 255, 255, 0.05);
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        .profile-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        .new-profile-form {
+            background-color: var(--secondary-bg);
+            padding: 2rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border-color);
+            max-width: 400px;
+            margin: 2rem auto;
+            text-align: left;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            background: var(--primary-bg);
+            color: var(--text-primary);
+        }
+        .flash-messages {
+            margin-bottom: 2rem;
+        }
+        .flash {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .flash-error { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid #ef4444; }
+        .flash-success { background: rgba(34, 197, 94, 0.1); color: #4ade80; border: 1px solid #22c55e; }
+    </style>
+</head>
+<body>
+    <div class="profile-container">
+        <header>
+            <div class="logo" style="font-size: 3rem; margin-bottom: 1rem;">🧠</div>
+            <h1>Who is learning today?</h1>
+            <p style="color: var(--text-secondary)">Select your profile or create a new one to continue.</p>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <div class="profile-grid">
+            {% for student in students %}
+            <div class="profile-card" onclick="selectProfile('{{ student.nickname }}', {{ 'true' if student.pin else 'false' }})">
+                <div class="profile-avatar">{{ student.nickname[0] | upper }}</div>
+                <div class="profile-name">{{ student.nickname }}</div>
+                {% if student.pin %}<div style="font-size: 0.75rem; color: var(--text-secondary)">🔒 PIN Protected</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <button class="btn btn-secondary" onclick="toggleNewForm()">+ Create New Profile</button>
+
+        <div id="new-profile" class="new-profile-form" style="display: none;">
+            <h3>Create Profile</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="create">
+                <div class="form-group">
+                    <label>Nickname (e.g. Musa, Ada, Chidi)</label>
+                    <input type="text" name="nickname" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>PIN (Optional, 4 digits)</label>
+                    <input type="password" name="pin" maxlength="4" placeholder="1234">
+                </div>
+                <button type="submit" class="btn" style="width: 100%; background-color: var(--accent-blue);">Create & Start</button>
+            </form>
+        </div>
+
+        <div id="login-form" class="new-profile-form" style="display: none;">
+            <h3>Login: <span id="login-nickname"></span></h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="login">
+                <input type="hidden" name="nickname" id="hidden-nickname">
+                <div id="pin-group" class="form-group" style="display: none;">
+                    <label>Enter your 4-digit PIN</label>
+                    <input type="password" name="pin" maxlength="4" autofocus>
+                </div>
+                <button type="submit" class="btn" style="width: 100%; background-color: var(--accent-blue);">Enter Session</button>
+                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;" onclick="hideLoginForm()">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleNewForm() {
+            document.getElementById('new-profile').style.display = 'block';
+            document.getElementById('login-form').style.display = 'none';
+        }
+
+        function selectProfile(nickname, hasPin) {
+            document.getElementById('new-profile').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('login-nickname').textContent = nickname;
+            document.getElementById('hidden-nickname').value = nickname;
+            
+            const pinGroup = document.getElementById('pin-group');
+            if (hasPin) {
+                pinGroup.style.display = 'block';
+                pinGroup.querySelector('input').required = true;
+            } else {
+                pinGroup.style.display = 'none';
+                pinGroup.querySelector('input').required = false;
+            }
+        }
+
+        function hideLoginForm() {
+            document.getElementById('login-form').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

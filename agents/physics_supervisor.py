@@ -3,6 +3,7 @@ agents/physics_supervisor.py — Physics Supervisor Agent.
 
 Strict overseer for physics learning with prerequisite enforcement,
 mastery tracking, and curriculum management.
+Supports multi-student state.
 """
 
 from .base import BaseAgent
@@ -96,29 +97,14 @@ hardware engineering in Benin City, Nigeria.
 YOUR RESPONSIBILITIES:
 1. TRACK mastery levels per physics topic (0-100% scale).
 2. ENFORCE prerequisites — NEVER allow a student to skip ahead without demonstrating mastery.
-   • No electromagnetism without solid mechanics + calculus
-   • No quantum without linear algebra + differential equations + EM
-3. ASSIGN study tasks from quality resources (Khan Academy, MIT OCW, Feynman Lectures).
-4. ASSESS understanding through targeted questions — not just memorization.
-5. FLAG weak areas and FORCE review loops until mastery improves.
+3. ASSIGN study tasks from quality resources.
+4. assessment understanding through targeted questions.
+5. FLAG weak areas and FORCE review loops.
 6. APPROVE or BLOCK hardware project suggestions based on physics readiness.
 
 STRICTNESS RULES:
-- If mastery < 60% in prerequisites, BLOCK advancement. Be direct: "You're not ready yet."
-- If user wants to skip, explain WHY prerequisites matter with a concrete example.
-- Track mistakes — if user repeats the same error, assign targeted review.
+- If mastery < 60% in prerequisites, BLOCK advancement.
 - Quality over speed. Deep understanding > surface coverage.
-
-TEACHING APPROACH:
-- Use chain-of-thought to show physics reasoning.
-- Connect theory to experiments and real-world applications.
-- Ask probing questions: "What would happen if we doubled the mass?"
-- Use order-of-magnitude reasoning and dimensional analysis.
-- Recommend specific lectures/chapters, not just "go study."
-
-APPROVAL FORMAT (for hardware requests):
-✅ APPROVED: "[Project name]" — You have demonstrated sufficient mastery in [topics].
-❌ BLOCKED: "[Project name]" — You need to improve [topics] first. Here's what to study: [specific tasks].
 """
 
 
@@ -132,160 +118,120 @@ class PhysicsSupervisorAgent(BaseAgent):
             **kwargs
         )
 
-    def chat(self, user_msg: str, context: str = "") -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
         """Enhanced chat with curriculum and mastery context."""
-        mastery_context = self._build_physics_context()
+        mastery_context = self._build_physics_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
-        return super().chat(user_msg, full_context)
+        return super().chat(user_msg, full_context, student_id=student_id)
 
-    def check_prerequisites(self, target_topic: str) -> dict:
-        """
-        Check if the user meets prerequisites for a physics topic.
+    def check_prerequisites(self, student_id: int, target_topic: str) -> dict:
+        """Check if the student meets prerequisites for a topic using DB topics table."""
+        if not self.db:
+            return {"allowed": True, "missing": [], "message": "No database. Skipping checks."}
 
-        Returns {"allowed": bool, "missing": [...], "message": str}
-        """
-        topic_info = CURRICULUM.get(target_topic)
-        if not topic_info:
-            return {"allowed": True, "missing": [], "message": f"Topic '{target_topic}' not in curriculum — proceeding."}
+        topic_data = self.db.get_topic(target_topic)
+        if not topic_data:
+            # Fallback to hardcoded curriculum if not in topics table
+            return self._check_legacy_prerequisites(student_id, target_topic)
 
         missing = []
-
-        # Check math prerequisites
-        math_prereqs = topic_info.get("math_prereqs", [])
-        for prereq in math_prereqs:
-            mastery = self.db.get_mastery(prereq) if self.db else None
+        # Check prerequisites from DB
+        for prereq_name in topic_data.get("prerequisites", []):
+            mastery = self.db.get_mastery(student_id, prereq_name)
             if not mastery or mastery["score"] < MASTERY_THRESHOLD_ADVANCE:
                 score = mastery["score"] if mastery else 0
-                missing.append(f"Math: {prereq} (current: {score}%, need: {MASTERY_THRESHOLD_ADVANCE}%)")
-
-        # Check physics prerequisites
-        physics_prereqs = topic_info.get("physics_prereqs", [])
-        for prereq in physics_prereqs:
-            mastery = self.db.get_mastery(prereq) if self.db else None
-            if not mastery or mastery["score"] < MASTERY_THRESHOLD_ADVANCE:
-                score = mastery["score"] if mastery else 0
-                missing.append(f"Physics: {prereq} (current: {score}%, need: {MASTERY_THRESHOLD_ADVANCE}%)")
+                missing.append(f"{prereq_name} ({score}%)")
 
         if missing:
-            missing_str = "\n  ".join(missing)
+            # Check if any missing prereqs are 'math' to provide better guidance
+            math_missing = []
+            for m in missing:
+                p_name = m.split(" (")[0]
+                p_data = self.db.get_topic(p_name)
+                if p_data and p_data["category"] == "math":
+                    math_missing.append(p_name)
+
+            if math_missing:
+                guidance = f"🤔 To understand **{target_topic}**, you first need a solid grasp of **{math_missing[0]}**."
+            else:
+                guidance = f"❌ **Prerequisites Not Met for {target_topic}**"
+
             return {
                 "allowed": False,
                 "missing": missing,
-                "message": (
-                    f"❌ **Prerequisites Not Met for {target_topic.replace('_', ' ').title()}**\n\n"
-                    f"You need to improve:\n  {missing_str}\n\n"
-                    f"📚 Focus on these areas first. Use `/problems <topic>` to practice!"
-                ),
+                "message": f"{guidance}\n\nImprove these first:\n" + "\n".join([f"• {m}" for m in missing])
             }
+            
+        return {"allowed": True, "missing": [], "message": f"✅ Ready for {target_topic}!"}
 
-        return {
-            "allowed": True,
-            "missing": [],
-            "message": f"✅ Prerequisites met for {target_topic.replace('_', ' ').title()}. Let's dive in!"
-        }
-
-    def approve_hardware(self, project_topics: list[str]) -> dict:
-        """Check if the user is ready for a hardware project requiring certain topics."""
+    def _check_legacy_prerequisites(self, student_id: int, target_topic: str) -> dict:
+        """Fallback check using the hardcoded CURRICULUM dictionary."""
+        topic_info = CURRICULUM.get(target_topic)
+        if not topic_info:
+            return {"allowed": True, "missing": [], "message": "Proceed."}
+        
         missing = []
+        for prereq in topic_info.get("math_prereqs", []) + topic_info.get("physics_prereqs", []):
+            mastery = self.db.get_mastery(student_id, prereq)
+            if not mastery or mastery["score"] < MASTERY_THRESHOLD_ADVANCE:
+                score = mastery["score"] if mastery else 0
+                missing.append(f"{prereq} ({score}%)")
+        
+        if missing:
+            return {
+                "allowed": False, 
+                "missing": missing, 
+                "message": f"❌ Missing prerequisites:\n" + "\n".join(missing)
+            }
+        return {"allowed": True, "missing": [], "message": "✅ Ready!"}
 
+    def approve_hardware(self, student_id: int, project_topics: list[str]) -> dict:
+        """Check if the student is ready for a hardware project."""
+        missing = []
         for topic in project_topics:
-            mastery = self.db.get_mastery(topic) if self.db else None
+            mastery = self.db.get_mastery(student_id, topic) if self.db else None
             if not mastery or mastery["score"] < MASTERY_THRESHOLD_HARDWARE:
                 score = mastery["score"] if mastery else 0
-                missing.append(f"{topic} (current: {score}%, need: {MASTERY_THRESHOLD_HARDWARE}%)")
+                missing.append(f"{topic} ({score}%)")
 
         if missing:
             return {
                 "approved": False,
                 "missing": missing,
-                "message": (
-                    f"❌ **Hardware Project Blocked**\n\n"
-                    f"Insufficient mastery in:\n  • " + "\n  • ".join(missing) + "\n\n"
-                    f"Strengthen these topics before building. I want you to succeed, "
-                    f"not get frustrated by gaps! 💪"
-                ),
+                "message": f"❌ **Hardware Blocked**\nNeed more mastery in:\n" + "\n".join(missing)
             }
+        return {"approved": True, "missing": [], "message": "✅ **Hardware Approved!**"}
 
-        return {
-            "approved": True,
-            "missing": [],
-            "message": "✅ **Hardware Project Approved!** You have the knowledge. Time to build! 🔧"
-        }
-
-    def get_study_tasks(self, topic: str) -> str:
+    def get_study_tasks(self, student_id: int, topic: str) -> str:
         """Generate study tasks for a specific topic."""
         topic_info = CURRICULUM.get(topic)
         if not topic_info:
-            return f"Topic '{topic}' not in the curriculum. Available: {', '.join(CURRICULUM.keys())}"
+            return f"Topic '{topic}' not found."
 
-        mastery = self.db.get_mastery(topic) if self.db else None
+        mastery = self.db.get_mastery(student_id, topic) if self.db else None
         score = mastery["score"] if mastery else 0
-
-        tasks = [f"📋 **Study Plan: {topic.replace('_', ' ').title()}** (Mastery: {score}%)\n"]
-
-        # Recommend resources
-        tasks.append("📖 **Recommended Resources:**")
-        for r in topic_info.get("resources", []):
-            tasks.append(f"  • {r}")
-
-        # Recommend subtopics to focus on
-        tasks.append("\n🎯 **Subtopics to Cover:**")
-        for i, sub in enumerate(topic_info.get("subtopics", []), 1):
-            sub_mastery = self.db.get_mastery(sub) if self.db else None
-            sub_score = sub_mastery["score"] if sub_mastery else 0
-            status = "✅" if sub_score >= MASTERY_THRESHOLD_ADVANCE else "📌"
-            tasks.append(f"  {status} {i}. {sub.replace('_', ' ').title()} ({sub_score}%)")
-
-        # Specific actions based on mastery level
-        tasks.append("\n📝 **This Week's Tasks:**")
-        if score < 30:
-            tasks.append("  1. Watch introductory lecture on this topic")
-            tasks.append("  2. Read the first relevant chapter carefully")
-            tasks.append("  3. Complete 10 practice problems at difficulty 1")
-        elif score < 60:
-            tasks.append("  1. Review weak subtopics identified above")
-            tasks.append("  2. Complete 10 practice problems at difficulty 2")
-            tasks.append("  3. Try to explain one key concept in your own words")
-        else:
-            tasks.append("  1. Attempt advanced problems at difficulty 3")
-            tasks.append("  2. Work through a real-world application example")
-            tasks.append("  3. Consider a hardware project that uses this knowledge")
-
+        tasks = [f"📋 **Study Plan: {topic.title()}** (Mastery: {score}%)\n"]
+        tasks.append("📖 **Resources:**")
+        for r in topic_info.get("resources", []): tasks.append(f"  • {r}")
+        
         return "\n".join(tasks)
 
-    def get_curriculum_overview(self) -> str:
-        """Return a formatted overview of the entire curriculum."""
+    def get_curriculum_overview(self, student_id: int) -> str:
+        """Return a formatted overview of the curriculum for the student."""
         lines = ["📚 **Physics Curriculum Overview**\n"]
-
         for topic, info in sorted(CURRICULUM.items(), key=lambda x: x[1]["order"]):
-            mastery = self.db.get_mastery(topic) if self.db else None
+            mastery = self.db.get_mastery(student_id, topic) if self.db else None
             score = mastery["score"] if mastery else 0
             bar = "█" * int(score / 10) + "░" * (10 - int(score / 10))
-
-            prereqs = info.get("physics_prereqs", []) + info.get("math_prereqs", [])
-            prereq_str = ", ".join(prereqs) if prereqs else "None"
-
-            lines.append(f"**{info['order']}. {topic.replace('_', ' ').title()}** [{bar}] {score}%")
-            lines.append(f"   {info['description']}")
-            lines.append(f"   Prerequisites: {prereq_str}")
-            lines.append("")
-
+            lines.append(f"**{info['order']}. {topic.title()}** [{bar}] {score}%")
         return "\n".join(lines)
 
-    def _build_physics_context(self) -> str:
-        """Build context string about physics mastery for LLM."""
-        if not self.db:
-            return "No mastery data available."
-
-        mastery = self.db.get_all_mastery()
-        physics_topics = [m for m in mastery if m["category"] in
-                          ("physics", "mechanics", "electromagnetism", "thermodynamics",
-                           "waves_optics", "quantum_basics", "physics_mechanics")]
-
-        if not physics_topics:
-            return "Student mastery: No physics topics tracked yet. Likely a beginner — start with mechanics."
-
-        lines = ["Student's current physics mastery:"]
-        for m in physics_topics:
-            lines.append(f"  - {m['topic']}: {m['score']}% ({m['problems_attempted']} problems attempted)")
+    def _build_physics_context(self, student_id: int) -> str:
+        if not self.db: return "No mastery data."
+        mastery = self.db.get_all_mastery(student_id)
+        physics = [m for m in mastery if m["category"] in ("physics", "mechanics", "electromagnetism")]
+        if not physics: return "Beginner — start with Mechanics."
+        lines = ["Student's physics mastery:"]
+        for m in physics:
+            lines.append(f"  - {m['topic']}: {m['score']}%")
         return "\n".join(lines)

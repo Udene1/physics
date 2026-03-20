@@ -98,7 +98,60 @@ body {
 .sidebar-footer {
     margin-top: auto;
     padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
 }
+
+.student-info {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 0.5rem;
+}
+
+.student-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.student-streak {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.switch-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--accent-blue);
+    text-decoration: none;
+}
+
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footer-links {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.footer-link {
+    color: var(--primary);
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.footer-link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+.switch-link:hover { text-decoration: underline; }
 
 .status-badge {
     display: flex;
@@ -326,4 +379,42 @@ body {
 
 .message {
     animation: fadeIn 0.3s ease-out;
+}
+
+/* Badge Toast Notifications */
+.badge-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--msg-assistant-bg);
+    border: 1px solid var(--accent-blue);
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    transform: translateX(120%);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 1000;
+}
+
+.badge-toast.visible {
+    transform: translateX(0);
+}
+
+.toast-icon {
+    font-size: 2rem;
+}
+
+.toast-body strong {
+    display: block;
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+}
+
+.toast-body div {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
 }

@@ -32,6 +32,18 @@ chatForm.addEventListener('submit', async (e) => {
             if (data.backend) {
                 backendInfo.textContent = `${data.backend} (${data.model || 'offline'})`;
             }
+            // Update streak counter if present
+            if (data.streak !== undefined) {
+                const streakEl = document.getElementById('streak-counter');
+                if (streakEl) streakEl.textContent = data.streak;
+            }
+
+            // Show badge notifications
+            if (data.new_badges && data.new_badges.length > 0) {
+                data.new_badges.forEach(badge => {
+                    showBadgeNotification(badge);
+                });
+            }
         } else if (data.error) {
             appendMessage('assistant', '⚠️ Error', `Sorry, something went wrong: ${data.error}`);
         }
@@ -40,6 +52,26 @@ chatForm.addEventListener('submit', async (e) => {
         appendMessage('assistant', '⚠️ Error', `Connection failed: ${err.message}`);
     }
 });
+
+function showBadgeNotification(badgeName) {
+    const toast = document.createElement('div');
+    toast.className = 'badge-toast';
+    toast.innerHTML = `
+        <div class="toast-icon">🏅</div>
+        <div class="toast-body">
+            <strong>Badge Unlocked!</strong>
+            <div>${badgeName}</div>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    
+    // Animate in and out
+    setTimeout(() => toast.classList.add('visible'), 100);
+    setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 500);
+    }, 5000);
+}
 
 function appendMessage(role, label, content) {
     const msgDiv = document.createElement('div');

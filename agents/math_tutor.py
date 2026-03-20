@@ -1,9 +1,9 @@
 """
 agents/math_tutor.py — Math Tutor Agent.
 
-Explains concepts from algebra through differential equations with Socratic questioning.
-Ties explanations to physical intuition and hardware applications.
-Uses SymPy for answer verification.
+Specializes in solving equations, providing step-by-step hints,
+and generating localized practice problems for Nigerian students.
+Uses SymPy for verification.
 """
 
 from .base import BaseAgent
@@ -11,202 +11,184 @@ from tools.math_verifier import MathVerifier
 from tools.problem_generator import ProblemGenerator
 
 
-SYSTEM_PROMPT = """You are the Math Tutor Agent — a patient, rigorous mathematics teacher helping a
-self-learner in Benin City, Nigeria build deep mathematical understanding for physics and
-hardware engineering applications.
-
-TEACHING PHILOSOPHY:
-1. NEVER solve problems completely for the user. Guide them with Socratic questions.
-2. Use chain-of-thought reasoning VISIBLY — show your thinking step by step.
-3. ALWAYS connect math to physical intuition:
-   - Derivatives → rates of change in circuits, velocity, acceleration
-   - Integrals → area under curves, total charge, total energy
-   - Linear algebra → transformations, circuit analysis, signal processing
-   - Differential equations → oscillations, heat flow, circuit dynamics
-4. Start with concrete examples before abstract theory.
-5. When the user is stuck, give ONE hint at a time, then ask a guiding question.
-6. Celebrate correct answers and correct reasoning.
-7. If the user makes an error, identify the specific misconception — don't just say "wrong."
-
-COVERAGE (in order of prerequisites):
-- Algebra & Trigonometry (refresh/foundation)
-- Calculus (single & multivariable)
-- Linear Algebra
-- Differential Equations
-- Probability & Statistics (basics for sensor data)
-
-HARDWARE CONNECTIONS (use when teaching):
-- "When you differentiate voltage across a capacitor, you get current flow — calculus in action!"
-- "Matrix multiplication is how we solve systems of linear equations in circuit analysis."
-- "This ODE describes how a spring-mass system oscillates — same math as an LC circuit!"
-
-FORMAT:
-- Use clear mathematical notation (x², √, ∫, Σ, etc.)
-- Break complex steps into numbered sub-steps
-- End explanations with a question to check understanding
-- Suggest practice problems from the problem generator
-"""
-
-
 class MathTutorAgent(BaseAgent):
-    """Math Tutor — Socratic teaching, problem generation, answer verification."""
+    """AI Tutor specializing in Mathematics (Algebra, Calculus, etc.)."""
 
     def __init__(self, **kwargs):
-        super().__init__(
-            name="MathTutor",
-            system_prompt=SYSTEM_PROMPT,
-            **kwargs
+        system_prompt = (
+            "You are the Math Tutor (Udene Physics). You explain concepts clearly "
+            "and encourage students to solve problems themselves. "
+            "Use standard mathematical notation. If a student is stuck, provide a "
+            "small hint rather than the full solution. Focus on foundational STEM "
+            "math (Algebra, Geometry, Trigonometry, Calculus)."
         )
+        super().__init__(name="MathTutor", system_prompt=system_prompt, **kwargs)
         self.verifier = MathVerifier()
         self.generator = ProblemGenerator()
-        self.current_problems: list[dict] = []
-        self.current_problem_index: int = 0
+        # Per-student state: {student_id: {"problems": [], "index": 0}}
+        self.states = {}
 
-    def chat(self, user_msg: str, context: str = "") -> str:
+    def _get_student_state(self, student_id: int) -> dict:
+        if student_id not in self.states:
+            self.states[student_id] = {"problems": [], "index": 0}
+        return self.states[student_id]
+
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
         """Enhanced chat that detects verification requests and problem commands."""
         msg_lower = user_msg.lower().strip()
 
         # Handle problem generation requests
         if msg_lower.startswith("/problems") or msg_lower.startswith("/practice"):
-            return self._handle_problem_request(msg_lower)
+            return self._handle_problem_request(student_id, msg_lower)
 
         # Handle answer verification
         if msg_lower.startswith("/verify") or msg_lower.startswith("/check"):
-            return self._handle_verify(user_msg)
+            return self._handle_verify(student_id, user_msg)
 
         # Handle "next problem" during a practice session
         if msg_lower in ("/next", "next", "next problem"):
-            return self._next_problem()
+            return self._next_problem(student_id)
 
         # Handle hint request
         if msg_lower in ("/hint", "hint", "give me a hint"):
-            return self._give_hint()
+            return self._give_hint(student_id)
 
         # Build mastery context for the tutor
-        mastery_context = self._build_mastery_context()
+        mastery_context = self._build_mastery_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
 
-        return super().chat(user_msg, full_context)
+        return super().chat(user_msg, full_context, student_id=student_id)
 
-    def _build_mastery_context(self) -> str:
+    def _build_mastery_context(self, student_id: int) -> str:
         """Build a context string from the user's math mastery levels."""
         if not self.db:
             return ""
-        mastery = self.db.get_all_mastery()
+        mastery = self.db.get_all_mastery(student_id)
         math_topics = [m for m in mastery if m["category"] in ("math", "algebra", "calculus",
                                                                  "linear_algebra", "trigonometry",
                                                                  "differential_equations")]
         if not math_topics:
             return "Student mastery: No math topics tracked yet (likely a beginner)."
-
-        lines = ["Student's current math mastery:"]
+        
+        summary = "Student's current math mastery:\n"
         for m in math_topics:
-            lines.append(f"  - {m['topic']}: {m['score']}% ({m['problems_attempted']} problems attempted)")
-        return "\n".join(lines)
+            summary += f"  • {m['topic']}: {m['score']}% ({m['problems_attempted']} attempts)\n"
+        return summary
 
-    def _handle_problem_request(self, msg: str) -> str:
-        """Generate practice problems for a topic."""
-        parts = msg.split()
-        topic = parts[1] if len(parts) > 1 else "algebra"
-        difficulty = int(parts[2]) if len(parts) > 2 else 1
-        count = int(parts[3]) if len(parts) > 3 else 5
+    def _handle_problem_request(self, student_id: int, msg: str) -> str:
+        """Generate a new set of problems based on the requested topic."""
+        topic_name = msg.replace("/problems", "").replace("/practice", "").strip() or "Basic Algebra"
+        
+        difficulty = 1
+        if self.db:
+            # Try to match the user's input to a real topic name
+            all_topics = self.db.get_all_topics(category="math")
+            for t in all_topics:
+                if topic_name.lower() in t["name"].lower():
+                    topic_name = t["name"]
+                    difficulty = t["difficulty"]
+                    break
 
-        available = self.generator.get_available_topics()
-        if topic not in available:
-            topics_list = ", ".join(available.keys())
+        problems = self.generator.generate(topic_name, difficulty=difficulty, count=3)
+        state = self._get_student_state(student_id)
+        state["problems"] = problems
+        state["index"] = 0
+        
+        if not problems or not problems[0]["statement"]:
+            return f"Sorry, I couldn't generate problems for '{topic_name}'. Try 'algebra' or 'calculus'."
+            
+        first = problems[0]
+        return (
+            f"📝 Let's practice **{topic}**!\n\n"
+            f"**Problem 1:** {first['statement']}\n\n"
+            "Try solving it and type `/verify <your_answer>` to check!"
+        )
+
+    def _handle_verify(self, student_id: int, user_msg: str) -> str:
+        """Verify the user's answer against the current problem."""
+        state = self._get_student_state(student_id)
+        if not state["problems"]:
+            return "I don't have a problem active for you. Type `/problems` to start!"
+            
+        current = state["problems"][state["index"]]
+        # Extract the user's answer part (strip /verify or /check)
+        user_ans = user_msg.replace("/verify", "").replace("/check", "").strip()
+        
+        if not user_ans:
+            return "Please provide an answer after /verify (e.g., `/verify 42`)"
+
+        # 'solution' is the key in ProblemGenerator output, not 'answer'
+        is_correct, explanation = self.verifier.verify_symbolic(current["solution"], user_ans)
+        
+        if self.db:
+            # Record result in DB
+            self.db.update_mastery(student_id, current["topic"], "math", is_correct)
+            self.db.log_interaction(
+                student_id=student_id,
+                agent="MathTutor",
+                topic=current["topic"],
+                user_input=user_msg,
+                agent_response=explanation,
+                result="correct" if is_correct else "incorrect"
+            )
+            
+        if is_correct:
             return (
-                f"📚 Available topics: {topics_list}\n\n"
-                f"Usage: /problems <topic> [difficulty] [count]\n"
-                f"Example: /problems calculus 2 5"
+                f"{explanation}\n\n"
+                "Great job! Type `/next` for the next problem."
+            )
+        else:
+            return (
+                f"{explanation}\n\n"
+                "🤔 Not quite! Think about it — or type `/hint` for more help."
             )
 
-        self.current_problems = self.generator.generate(topic, difficulty, count)
-        self.current_problem_index = 0
-        return self._format_problem(0)
-
-    def _format_problem(self, index: int) -> str:
-        """Format a problem for display."""
-        if index >= len(self.current_problems):
-            return self._session_complete()
-
-        p = self.current_problems[index]
-        total = len(self.current_problems)
+    def _next_problem(self, student_id: int) -> str:
+        """Move to the next problem in the current set."""
+        state = self._get_student_state(student_id)
+        if not state["problems"]:
+            return "No active problem set. Type `/problems` to get some!"
+            
+        state["index"] += 1
+        if state["index"] >= len(state["problems"]):
+            return (
+                "🏁 You've finished this practice set! "
+                "Type `/problems <topic>` to get more challenges."
+            )
+            
+        current = state["problems"][state["index"]]
         return (
-            f"📝 **Problem {index + 1}/{total}** [{p['topic']} — Difficulty {p['difficulty']}]\n\n"
-            f"{p['statement']}\n\n"
-            f"💡 Type your answer, or:\n"
-            f"  • `/hint` for a hint\n"
-            f"  • `/next` to skip\n"
-            f"  • `/verify <your_answer>` to check"
+            f"**Problem {state['index'] + 1}:**\n\n"
+            f"{current['question']}\n\n"
+            "Take your time!"
         )
 
-    def _next_problem(self) -> str:
-        """Move to the next problem in the session."""
-        if not self.current_problems:
-            return "No active practice session. Use `/problems <topic>` to start one!"
-
-        self.current_problem_index += 1
-        return self._format_problem(self.current_problem_index)
-
-    def _give_hint(self) -> str:
-        """Give a hint for the current problem."""
-        if not self.current_problems or self.current_problem_index >= len(self.current_problems):
-            return "No active problem. Use `/problems <topic>` to start practicing!"
-
-        p = self.current_problems[self.current_problem_index]
-        return f"💡 **Hint:** {p['hint']}"
-
-    def _handle_verify(self, msg: str) -> str:
-        """Verify a user's answer against the current problem or a custom expression."""
-        parts = msg.split(maxsplit=1)
-        if len(parts) < 2:
-            return "Usage: `/verify <your_answer>`\nExample: `/verify x**2 + 2*x + 1`"
-
-        user_answer = parts[1].strip()
-
-        # If we have an active problem, compare against its solution
-        if self.current_problems and self.current_problem_index < len(self.current_problems):
-            p = self.current_problems[self.current_problem_index]
-            expected = p["solution"]
-
-            # Try symbolic verification
-            is_correct, explanation = self.verifier.verify_symbolic(expected, user_answer)
-
-            if is_correct:
-                # Update mastery
-                if self.db:
-                    self.db.update_mastery(p["topic"], p["topic"], True)
-
-                result = (
-                    f"{explanation}\n\n"
-                    f"🎉 Excellent work! Moving to the next problem...\n"
-                )
-                self.current_problem_index += 1
-                if self.current_problem_index < len(self.current_problems):
-                    result += "\n" + self._format_problem(self.current_problem_index)
-                else:
-                    result += "\n" + self._session_complete()
-                return result
-            else:
-                if self.db:
-                    self.db.update_mastery(p["topic"], p["topic"], False)
-                return (
-                    f"{explanation}\n\n"
-                    f"🤔 Not quite! Think about it — {p['hint']}\n"
-                    f"Try again with `/verify <new_answer>`, or `/hint` for more help."
-                )
-
-        return "No active problem to verify against. Start a session with `/problems <topic>`"
-
-    def _session_complete(self) -> str:
-        """Summary when all problems in a session are done."""
-        total = len(self.current_problems)
-        self.current_problems = []
-        self.current_problem_index = 0
-        return (
-            f"🏆 **Practice Session Complete!** ({total} problems)\n\n"
-            f"Great effort! You can:\n"
-            f"  • Start another session: `/problems <topic> [difficulty]`\n"
-            f"  • Ask me to explain any concept\n"
-            f"  • Check your progress: `/report`"
+    def _give_hint(self, student_id: int) -> str:
+        """Provide a hint for the current problem based on the LLM's logic."""
+        state = self._get_student_state(student_id)
+        if not state["problems"]:
+            return "I can only give hints if we are solving a specific problem. Type `/problems` to start."
+            
+        current = state["problems"][state["index"]]
+        
+        # We can use the LLM to generate a hint based on the question and answer
+        prompt = (
+            f"The student is working on this math problem: '{current['question']}'.\n"
+            f"The correct answer is '{current['answer']}'.\n"
+            f"They need a small, helpful hint that doesn't reveal the whole answer."
         )
+        return self.chat(prompt, context="Provide only the hint text.", student_id=student_id)
+
+    def get_summary(self, student_id: int) -> str:
+        """Return a string summary of math progress."""
+        if not self.db:
+            return "Math tracking is disabled (no database)."
+        mastery = self.db.get_all_mastery(student_id)
+        math = [m for m in mastery if m["category"] in ("math", "algebra", "calculus")]
+        if not math:
+            return "No math progress recorded yet."
+        
+        lines = ["📏 **Math Mastery Overview:**"]
+        for m in math:
+            lines.append(f"  • {m['topic']}: {m['score']}%")
+        return "\n".join(lines)
