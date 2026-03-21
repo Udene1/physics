@@ -217,13 +217,30 @@ class PhysicsSupervisorAgent(BaseAgent):
         return "\n".join(tasks)
 
     def get_curriculum_overview(self, student_id: int) -> str:
-        """Return a formatted overview of the curriculum for the student."""
+        """Return a formatted overview of the curriculum based on 5 standard buckets."""
+        if not self.db: return "No database connection."
+        
+        buckets = ["Mechanics", "Electromagnetism", "Thermodynamics", "Waves & Optics", "Quantum Basics"]
+        all_topics = self.db.get_all_topics()
+        
         lines = ["📚 **Physics Curriculum Overview**\n"]
-        for topic, info in sorted(CURRICULUM.items(), key=lambda x: x[1]["order"]):
-            mastery = self.db.get_mastery(student_id, topic) if self.db else None
-            score = mastery["score"] if mastery else 0
-            bar = "█" * int(score / 10) + "░" * (10 - int(score / 10))
-            lines.append(f"**{info['order']}. {topic.title()}** [{bar}] {score}%")
+        
+        for i, cat_name in enumerate(buckets, 1):
+            items = [t for t in all_topics if t["category"] == cat_name]
+            
+            if not items:
+                lines.append(f"**{i}. {cat_name}** [░░░░░░░░░░] 0% (Coming Soon)")
+                continue
+
+            total_mastery = 0
+            for item in items:
+                m = self.db.get_mastery(student_id, item["name"])
+                total_mastery += m["score"] if m else 0
+            
+            avg_mastery = int(total_mastery / len(items)) if items else 0
+            bar = "█" * (avg_mastery // 10) + "░" * (10 - (avg_mastery // 10))
+            lines.append(f"**{i}. {cat_name}** [{bar}] {avg_mastery}%")
+                
         return "\n".join(lines)
 
     def _build_physics_context(self, student_id: int) -> str:

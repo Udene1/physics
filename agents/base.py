@@ -23,36 +23,38 @@ except ImportError:
     GEMINI_AVAILABLE = False
 
 
-# Hardware/Environment Config
+# Hardware/Environment Config - Removed module globals for late-binding with .env
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 
 def detect_backend() -> tuple[str, str]:
     """Auto-detect the best available LLM backend."""
     target = os.environ.get("LLM_BACKEND", "auto").lower()
+    gemini_key = os.environ.get("GEMINI_API_KEY")
     
     # Force Gemini
-    if target == "gemini" and GEMINI_AVAILABLE and GEMINI_API_KEY:
+    if target == "gemini" and GEMINI_AVAILABLE and gemini_key:
         return "gemini", "gemini-2.0-flash"
         
     # Force Ollama
     if target == "ollama" and OLLAMA_AVAILABLE:
-        return "ollama", detect_model()
+        model = detect_model()
+        if model: return "ollama", model
         
     # Auto-detect
-    if GEMINI_AVAILABLE and GEMINI_API_KEY:
+    if GEMINI_AVAILABLE and gemini_key:
         return "gemini", "gemini-2.0-flash"
         
     if OLLAMA_AVAILABLE:
         try:
             client = ollama.Client(host=OLLAMA_HOST)
-            client.list()
-            return "ollama", detect_model()
+            models = client.list().get('models', [])
+            if models:
+                return "ollama", detect_model()
         except Exception:
             pass
             
-    return "offline", None
+    return "offline", "builtin"
 
 
 def detect_model() -> str:
@@ -100,9 +102,10 @@ class BaseAgent:
             except Exception: self._backend = "offline"
 
         self._gemini_model = None
-        if self._backend == "gemini" and GEMINI_AVAILABLE:
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if self._backend == "gemini" and GEMINI_AVAILABLE and gemini_key:
             try:
-                genai.configure(api_key=GEMINI_API_KEY)
+                genai.configure(api_key=gemini_key)
                 self._gemini_model = genai.GenerativeModel(
                     self.model,
                     system_instruction=self.system_prompt
@@ -155,6 +158,8 @@ class BaseAgent:
             return f"⚠️ Gemini Error: {e}"
 
     def _call_ollama(self, messages: list[dict]) -> str:
+        if not self.model:
+            return self._offline_response(messages[-1]["content"])
         try:
             response = self._ollama_client.chat(model=self.model, messages=messages)
             return response["message"]["content"]

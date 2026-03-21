@@ -37,8 +37,7 @@
                 <span>🔥 <span id="current-streak">{{ session.get('streak', 0) }}</span> day streak</span>
             </div>
             <div class="footer-links">
-                <a href="{{ url_for('profile_page') }}" class="footer-link">🔄 Switch</a>
-                <a href="{{ url_for('download_report') }}" class="footer-link">📄 PDF</a>
+                <a href="{{ url_for('switch_profile') }}" class="footer-link">🔄 Switch</a>
                 <a href="{{ url_for('logout') }}" class="footer-link">🚪 Logout</a>
             </div>
             <div class="status-badge">

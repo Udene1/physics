@@ -6,13 +6,14 @@ Deployable to pxxl.app.
 """
 
 import os
-from functools import wraps
 from dotenv import load_dotenv
+
+# Load environment variables FIRST
+load_dotenv()
+
+from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
 from main import init_agents, handle_message
-
-# Load environment variables from .env file
-load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "udene-physics-secret-shared-laptop")
@@ -88,6 +89,12 @@ def switch_profile():
     session.clear()
     return redirect(url_for('profile'))
 
+@app.route('/logout')
+def logout():
+    """Clear session and go to profile page."""
+    session.clear()
+    return redirect(url_for('profile'))
+
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
@@ -132,32 +139,6 @@ def get_curriculum():
     student_id = session.get('student_id')
     overview = agents["physics"].get_curriculum_overview(student_id)
     return jsonify({"curriculum": overview})
-
-from tools.pdf_generator import generate_student_report
-
-# Ensure export directory exists
-os.makedirs("memory/exports", exist_ok=True)
-
-@app.route('/download_report')
-@login_required
-def download_report():
-    student_id = session.get('student_id')
-    nickname = session.get('nickname')
-    
-    # 1. Gather Data
-    stats = db.generate_summary(student_id)
-    mastery_list = db.get_all_mastery(student_id)
-    
-    # 2. File Path
-    filename = f"Report_{nickname}_{datetime.now().strftime('%Y%m%d')}.pdf"
-    filepath = os.path.join("memory/exports", filename)
-    
-    # 3. Generate PDF
-    try:
-        generate_student_report(nickname, stats, mastery_list, filepath)
-        return send_file(filepath, as_attachment=True)
-    except Exception as e:
-        return f"Error generating PDF: {str(e)}", 500
 
 if __name__ == '__main__':
     # Use environment variables for port to support cloud hosting

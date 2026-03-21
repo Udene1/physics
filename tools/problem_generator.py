@@ -13,7 +13,7 @@ x, y, z, t = sp.symbols("x y z t")
 # ── Problem Templates ───────────────────────────────────────────────
 
 PROBLEM_BANK = {
-    "algebra": {
+    "Basic Algebra": {
         1: [
             {"statement": "Solve for x: {a}x + {b} = {c}",
              "params": lambda: {"a": random.randint(2, 9), "b": random.randint(1, 20), "c": random.randint(10, 50)},
@@ -45,7 +45,15 @@ PROBLEM_BANK = {
              "hint": "Split into two cases: the expression equals +c and -c."},
         ],
     },
-    "trigonometry": {
+    "Linear Equations": {
+        2: [
+            {"statement": "Find the slope and y-intercept of the line: y = {m}x + {b}",
+             "params": lambda: {"m": random.randint(-5, 5), "b": random.randint(-10, 10)},
+             "solution": lambda p: f"m = {p['m']}, b = {p['b']}",
+             "hint": "The equation is in y = mx + b form."},
+        ]
+    },
+    "Trigonometry Basics": {
         1: [
             {"statement": "Convert {deg}° to radians.",
              "params": lambda: {"deg": random.choice([30, 45, 60, 90, 120, 135, 150, 180, 270, 360])},
@@ -59,7 +67,7 @@ PROBLEM_BANK = {
              "hint": "Think about the unit circle. In which quadrants is sine positive/negative?"},
         ],
     },
-    "calculus": {
+    "Calculus (Differentiation)": {
         1: [
             {"statement": "Find dy/dx if y = {a}x^{n} + {b}x^{m}",
              "params": lambda: {"a": random.randint(2, 8), "n": random.randint(2, 5),
@@ -86,7 +94,7 @@ PROBLEM_BANK = {
              "hint": "Set f'(x) = 0 and solve."},
         ],
     },
-    "linear_algebra": {
+    "Linear Algebra": {
         1: [
             {"statement": "Compute the dot product: [{a}, {b}] · [{c}, {d}]",
              "params": lambda: {"a": random.randint(-5, 5), "b": random.randint(-5, 5),
@@ -102,7 +110,7 @@ PROBLEM_BANK = {
              "hint": "det([[a,b],[c,d]]) = ad - bc."},
         ],
     },
-    "differential_equations": {
+    "Differential Equations": {
         2: [
             {"statement": "Solve the ODE: dy/dx = {a}y",
              "params": lambda: {"a": random.randint(1, 5)},
@@ -117,18 +125,28 @@ PROBLEM_BANK = {
              "hint": "Write the characteristic equation r² + ar + b = 0, find its roots."},
         ],
     },
-    "physics_mechanics": {
+    "Kinematics": {
+        2: [
+            {"statement": "A car accelerates from rest at {a}m/s² for {t}s. What is its final velocity?",
+             "params": lambda: {"a": random.randint(2, 8), "t": random.randint(3, 10)},
+             "solution": lambda p: f"v = at = {p['a'] * p['t']} m/s",
+             "hint": "Use v = u + at, where u=0."},
+        ],
+    },
+    "Newton's Laws": {
+        2: [
+            {"statement": "A {m}kg object is pushed with {f}N force. What is its acceleration?",
+             "params": lambda: {"m": random.randint(2, 20), "f": random.randint(10, 100)},
+             "solution": lambda p: f"a = F/m = {round(p['f']/p['m'], 2)} m/s²",
+             "hint": "Newton's second law: F = ma."},
+        ],
+    },
+    "Physics (Mechanics)": {
         1: [
             {"statement": "A ball is dropped from {h}m. How long to hit the ground? (g=9.8 m/s²)",
              "params": lambda: {"h": random.choice([5, 10, 20, 45, 80])},
              "solution": lambda p: f"t = √(2h/g) = {round((2*p['h']/9.8)**0.5, 2)}s",
              "hint": "Use h = ½gt². Solve for t."},
-        ],
-        2: [
-            {"statement": "A {m}kg object accelerates at {a}m/s². What force is applied?",
-             "params": lambda: {"m": random.randint(2, 50), "a": random.randint(1, 10)},
-             "solution": lambda p: f"F = ma = {p['m'] * p['a']}N",
-             "hint": "Newton's second law: F = ma."},
         ],
     },
 }

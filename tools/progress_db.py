@@ -460,39 +460,45 @@ class ProgressDB:
             ("Calculus (Integration)", "math", 3, '["Calculus (Differentiation)"]', "Area cutouts", "Integration and areas under curves."),
             ("Differential Equations", "math", 4, '["Calculus (Integration)"]', "Growth model", "Modeling change over time."),
             
-            # PHYSICS - FOUNDATIONS
-            ("Units & Measurements", "physics", 1, '["Fractions & Decimals"]', "Handmade Ruler", "SI units and error analysis."),
-            ("Scalars & Vectors", "physics", 1, '["Trigonometry Basics"]', "Rubber Band Force", "Combining physical quantities."),
-            
             # PHYSICS - MECHANICS
-            ("Kinematics", "physics", 2, '["Calculus (Differentiation)"]', "Bamboo Incline", "Position, velocity, acceleration."),
-            ("Newton's Laws", "physics", 2, '["Basic Algebra"]', "Balloon Powered Car", "Force, mass, and acceleration."),
-            ("Friction", "physics", 2, '["Newton\'s Laws"]', "Sandpaper Sled", "Static and kinetic friction."),
-            ("Work & Power", "physics", 2, '["Calculus (Integration)"]', "Water lifting pulley", "Force over distance."),
-            ("Energy Conservation", "physics", 2, '["Work & Power"]', "Marble Rollercoaster", "Potential and kinetic energy."),
-            ("Momentum", "physics", 2, '["Newton\'s Laws"]', "Newton's Cradle", "Impulse and collisions."),
-            ("Circular Motion", "physics", 3, '["Kinematics", "Trigonometry Basics"]', "Whirling stopper", "Centripetal force."),
-            ("Gravitation", "physics", 3, '["Newton\'s Laws"]', "Lead weight test", "Universal Law of Gravitation."),
-            ("Oscillations (SHM)", "physics", 3, '["Trigonometry Basics", "Calculus (Differentiation)"]', "Bottle Pendulum", "Periodic motion."),
+            ("Units & Measurements", "Mechanics", 1, '["Fractions & Decimals"]', "Handmade Ruler", "SI units and error analysis."),
+            ("Scalars & Vectors", "Mechanics", 1, '["Trigonometry Basics"]', "Rubber Band Force", "Combining physical quantities."),
+            ("Kinematics", "Mechanics", 2, '["Calculus (Differentiation)"]', "Bamboo Incline", "Position, velocity, acceleration."),
+            ("Newton's Laws", "Mechanics", 2, '["Basic Algebra"]', "Balloon Powered Car", "Force, mass, and acceleration."),
+            ("Friction", "Mechanics", 2, '["Newton\'s Laws"]', "Sandpaper Sled", "Static and kinetic friction."),
+            ("Work & Power", "Mechanics", 2, '["Calculus (Integration)"]', "Water lifting pulley", "Force over distance."),
+            ("Energy Conservation", "Mechanics", 2, '["Work & Power"]', "Marble Rollercoaster", "Potential and kinetic energy."),
+            ("Momentum", "Mechanics", 2, '["Newton\'s Laws"]', "Newton's Cradle", "Impulse and collisions."),
+            ("Circular Motion", "Mechanics", 3, '["Kinematics", "Trigonometry Basics"]', "Whirling stopper", "Centripetal force."),
+            ("Gravitation", "Mechanics", 3, '["Newton\'s Laws"]', "Lead weight test", "Universal Law of Gravitation."),
+            ("Oscillations (SHM)", "Mechanics", 3, '["Trigonometry Basics", "Calculus (Differentiation)"]', "Bottle Pendulum", "Periodic motion."),
             
-            # PHYSICS - ELECTRICITY
-            ("Electrostatics", "physics", 2, '["Basic Algebra"]', "PVC Electroscope", "Static charges and Coulomb's law."),
-            ("Electric Fields", "physics", 3, '["Vectors & Matrices", "Electrostatics"]', None, "Mapping electrical force fields."),
-            ("Ohm's Law", "physics", 2, '["Basic Algebra"]', "Lemon Battery", "Voltage, current, and resistance."),
-            ("DC Circuits", "physics", 2, '["Ohm\'s Law"]', "Cardboard Flashlight", "Series and parallel circuits."),
-            ("Magnetism", "physics", 2, '["Electrostatics"]', "Nail Electromagnet", "Magnetic fields and poles."),
-            ("Electromagnetic Induction", "physics", 3, '["DC Circuits", "Magnetism"]', "Hand-crank generator", "Faraday's Law."),
+            # PHYSICS - ELECTROMAGNETISM
+            ("Electrostatics", "Electromagnetism", 2, '["Basic Algebra"]', "PVC Electroscope", "Static charges and Coulomb's law."),
+            ("Electric Fields", "Electromagnetism", 3, '["Vectors & Matrices", "Electrostatics"]', None, "Mapping electrical force fields."),
+            ("Ohm's Law", "Electromagnetism", 2, '["Basic Algebra"]', "Lemon Battery", "Voltage, current, and resistance."),
+            ("DC Circuits", "Electromagnetism", 2, '["Ohm\'s Law"]', "Cardboard Flashlight", "Series and parallel circuits."),
+            ("Magnetism", "Electromagnetism", 2, '["Electrostatics"]', "Nail Electromagnet", "Magnetic fields and poles."),
+            ("Electromagnetic Induction", "Electromagnetism", 3, '["DC Circuits", "Magnetism"]', "Hand-crank generator", "Faraday's Law."),
+            
+            # PHYSICS - THERMODYNAMICS
+            ("Temperature & Heat", "Thermodynamics", 2, '["Basic Algebra"]', "Homemade Thermometer", "Thermal energy and temperature scales."),
+            ("Laws of Thermodynamics", "Thermodynamics", 3, '["Calculus (Differentiation)"]', "Steam Engine Model", "Entropy and energy conservation."),
             
             # PHYSICS - WAVES & OPTICS
-            ("Wave Properties", "physics", 2, '["Trigonometry Basics"]', "String Phone", "Frequency, wavelength, amplitude."),
-            ("Optics (Reflection)", "physics", 2, '["Geometry Basics"]', "Cardboard Mirror Periscope", "Law of reflection."),
-            ("Optics (Refraction)", "physics", 2, '["Trigonometry Basics"]', "Water Prism", "Snell's Law."),
-            ("Lenses", "physics", 2, '["Optics (Refraction)"]', "Magnifying Glass Camera", "Converging and diverging lenses."),
+            ("Wave Properties", "Waves & Optics", 2, '["Trigonometry Basics"]', "String Phone", "Frequency, wavelength, amplitude."),
+            ("Optics (Reflection)", "Waves & Optics", 2, '["Geometry Basics"]', "Cardboard Mirror Periscope", "Law of reflection."),
+            ("Optics (Refraction)", "Waves & Optics", 2, '["Trigonometry Basics"]', "Water Prism", "Snell's Law."),
+            ("Lenses", "Waves & Optics", 2, '["Optics (Refraction)"]', "Magnifying Glass Camera", "Converging and diverging lenses."),
+
+            # PHYSICS - QUANTUM BASICS
+            ("Atomic Structure", "Quantum Basics", 3, '["Electrostatics"]', "Bohr Model Kit", "Understanding atoms and subatomic particles."),
+            ("Quantum Intro", "Quantum Basics", 4, '["Calculus (Differentiation)"]', None, "Dual nature of light and matter."),
         ]
 
         for t in topics:
             self.conn.execute("""
-                INSERT OR IGNORE INTO topics 
+                INSERT OR REPLACE INTO topics 
                 (name, category, difficulty, prerequisites, build_hint, description)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, t)

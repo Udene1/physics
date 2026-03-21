@@ -32,8 +32,12 @@ FRUSTRATION_RESPONSES = [
 SYSTEM_PROMPT = """You are the Daily Companion (Udene Physics). 
 Your role is to be a friendly, encouraging mentor for students in Nigeria.
 Use local context (e.g., Igbo greetings like 'Kedu', 'Ndewo') and keep motivation high.
-You help students stay consistent, recap their progress, and set small, achievable goals.
-If a student is frustrated, be empathetic and suggest a break or a simpler task.
+You are NOT just a physics tutor; you are a friend. Feel free to engage in small talk, 
+ask about the student's day, their dreams, or their favorite Nigerian snacks!
+
+When the 'Brain' (LLM) is connected, be very talkative and creative. 
+If the student asks "how are you" or "what's up", give a warm, conversational reply.
+Mention your 'Brain status' (Gemini or Ollama) if asked about how you think.
 """
 
 
@@ -48,15 +52,26 @@ class CompanionAgent(BaseAgent):
         )
 
     def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
-        """Enhanced chat for the Companion with student-specific context."""
+        """Enhanced chat for the Companion with student-specific context and backend info."""
         student_info = ""
         if self.db:
             student = self.db.get_student(student_id)
             if student:
                 student_info = f"You are talking to {student['nickname']}."
         
-        full_context = f"{context}\n\n{student_info}" if context else student_info
-        return super().chat(user_msg, full_context, student_id=student_id)
+        # Add backend info to the internal context so the LLM knows what it is
+        backend_info = f"Your current LLM backend is: {self._backend} ({self.model})."
+        
+        full_context = f"{context}\n\n{student_info}\n{backend_info}" if context else f"{student_info}\n{backend_info}"
+        
+        response = super().chat(user_msg, full_context, student_id=student_id)
+        
+        # If the user asks about the brain or if it's connected
+        if any(word in user_msg.lower() for word in ["brain", "connected", "llm", "how do you think"]):
+            if "Offline" not in response and self._backend != "offline":
+                 response += f"\n\n(✨ *Note: My {self._backend.title()} brain is fully connected and ready to chat!*)"
+        
+        return response
 
     def greet(self, student_id: int) -> str:
         """Generate a daily greeting with progress summary for a specific student."""
