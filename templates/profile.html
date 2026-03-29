@@ -3,106 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Who is learning today? | AI Learning Companion</title>
+    <title>Who is learning today? | Udene Physics</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        .profile-container {
-            max-width: 800px;
-            margin: 100px auto;
-            padding: 2rem;
-            text-align: center;
-        }
-        .profile-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 1.5rem;
-            margin: 3rem 0;
-        }
-        .profile-card {
-            background-color: var(--secondary-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 1rem;
-            padding: 2rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1rem;
-        }
-        .profile-card:hover {
-            transform: translateY(-5px);
-            border-color: var(--accent-blue);
-            background-color: rgba(56, 189, 248, 0.05);
-        }
-        .profile-avatar {
-            font-size: 3rem;
-            background: rgba(255, 255, 255, 0.05);
-            width: 80px;
-            height: 80px;
+        body {
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50%;
+            background: #030712;
+            min-height: 100vh;
+            overflow-y: auto;
         }
-        .profile-name {
-            font-weight: 600;
+
+        .profile-container {
+            width: 100%;
+            max-width: 900px;
+            padding: 3rem 1.5rem;
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .profile-header {
+            margin-bottom: 3.5rem;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .profile-header h1 {
+            font-size: clamp(2rem, 5vw, 2.8rem);
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .profile-header p {
+            color: var(--text-secondary);
             font-size: 1.1rem;
         }
-        .new-profile-form {
-            background-color: var(--secondary-bg);
-            padding: 2rem;
-            border-radius: 1rem;
-            border: 1px solid var(--border-color);
-            max-width: 400px;
-            margin: 2rem auto;
-            text-align: left;
+
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
         }
-        .form-group {
-            margin-bottom: 1.5rem;
+
+        .profile-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 2.5rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.25rem;
         }
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
+
+        .profile-card:hover {
+            transform: scale(1.05);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--accent-green);
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.15);
         }
-        .form-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            border: 1px solid var(--border-color);
-            background: var(--primary-bg);
+
+        .profile-avatar {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #1e40af 100%);
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 800;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .profile-name {
+            font-size: 1.25rem;
+            font-weight: 700;
             color: var(--text-primary);
         }
-        .flash-messages {
+
+        .profile-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--accent-gold);
+            padding: 0.25rem 0.75rem;
+            background: rgba(251, 191, 36, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+
+        .new-profile-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            padding: 1rem 2.5rem;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .new-profile-btn:hover {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .modal-form {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 32px;
+            padding: 3rem;
+            width: 100%;
+            max-width: 450px;
+            margin: 2rem auto;
+            text-align: left;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: zoomIn 0.3s ease-out;
+        }
+
+        .form-group {
             margin-bottom: 2rem;
         }
-        .flash {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
         }
-        .flash-error { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid #ef4444; }
-        .flash-success { background: rgba(34, 197, 94, 0.1); color: #4ade80; border: 1px solid #22c55e; }
+
+        .form-group input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 1.25rem;
+            border-radius: 16px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent-green);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .profile-grid { grid-template-columns: 1fr; }
+            .modal-form { padding: 2rem; border-radius: 24px; }
+            .profile-container { padding: 2rem 1rem; }
+        }
     </style>
 </head>
 <body>
+    <!-- Background Decor -->
+    <div class="bg-glow" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; background: radial-gradient(circle at 10% 10%, rgba(34, 197, 94, 0.1) 0%, transparent 40%), radial-gradient(circle at 90% 90%, rgba(56, 189, 248, 0.1) 0%, transparent 40%);"></div>
+
     <div class="profile-container">
-        <header>
-            <div class="logo" style="font-size: 3rem; margin-bottom: 1rem;">🧠</div>
+        <header class="profile-header">
+            <div class="logo" style="font-size: 4rem; margin-bottom: 1.5rem; filter: drop-shadow(0 0 15px rgba(34, 197, 94, 0.3));">🧠</div>
             <h1>Who is learning today?</h1>
-            <p style="color: var(--text-secondary)">Select your profile or create a new one to continue.</p>
+            <p>Welcome back to Udene Physics. Start your journey.</p>
         </header>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
-            <div class="flash-messages">
+            <div class="flash-messages" style="max-width: 450px; margin: 0 auto 2rem;">
               {% for category, message in messages %}
-                <div class="flash flash-{{ category }}">{{ message }}</div>
+                <div class="flash flash-{{ category }}" style="padding: 1rem; border-radius: 12px; margin-bottom: 1rem; font-weight: 600; text-align: center; {% if category == 'error' %} background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); {% else %} background: rgba(34, 197, 94, 0.1); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); {% endif %}">
+                    {{ message }}
+                </div>
               {% endfor %}
             </div>
           {% endif %}
@@ -111,70 +214,89 @@
         <div class="profile-grid">
             {% for student in students %}
             <div class="profile-card" onclick="selectProfile('{{ student.nickname }}', {{ 'true' if student.pin else 'false' }})">
-                <div class="profile-avatar">{{ student.nickname[0] | upper }}</div>
+                <div class="profile-avatar" style="background: linear-gradient(135deg, {% if loop.index0 % 3 == 0 %}#22c55e{% elif loop.index0 % 3 == 1 %}#38bdf8{% else %}#fbbf24{% endif %}, #1e293b)">
+                    {{ student.nickname[0] | upper }}
+                </div>
                 <div class="profile-name">{{ student.nickname }}</div>
-                {% if student.pin %}<div style="font-size: 0.75rem; color: var(--text-secondary)">🔒 PIN Protected</div>{% endif %}
+                {% if student.pin %}
+                <div class="profile-badge">🔒 PIN Protected</div>
+                {% else %}
+                <div class="profile-badge" style="background: rgba(56, 189, 248, 0.1); color: var(--accent-blue); border-color: rgba(56, 189, 248, 0.2);">Guest</div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
 
-        <button class="btn btn-secondary" onclick="toggleNewForm()">+ Create New Profile</button>
+        <button class="new-profile-btn" onclick="toggleNewForm()">+ Create New Profile</button>
 
-        <div id="new-profile" class="new-profile-form" style="display: none;">
-            <h3>Create Profile</h3>
+        <!-- New Profile Form -->
+        <div id="new-profile" class="modal-form" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2 style="font-size: 1.5rem; font-weight: 800;">Create Profile</h2>
+                <button onclick="hideAllForms()" style="background:none; border:none; color:var(--text-secondary); font-size: 1.5rem; cursor:pointer;">&times;</button>
+            </div>
             <form method="POST">
                 <input type="hidden" name="action" value="create">
                 <div class="form-group">
-                    <label>Nickname (e.g. Musa, Ada, Chidi)</label>
-                    <input type="text" name="nickname" required autocomplete="off">
+                    <label>Unique Nickname</label>
+                    <input type="text" name="nickname" placeholder="e.g. Musa99" required autocomplete="off">
                 </div>
                 <div class="form-group">
-                    <label>PIN (Optional, 4 digits)</label>
-                    <input type="password" name="pin" maxlength="4" placeholder="1234">
+                    <label>Session PIN (Optional)</label>
+                    <input type="password" name="pin" maxlength="4" placeholder="4 digits">
                 </div>
-                <button type="submit" class="btn" style="width: 100%; background-color: var(--accent-blue);">Create & Start</button>
+                <button type="submit" style="width: 100%; background: var(--accent-blue); color: #fff; border:none; padding: 1.25rem; border-radius: 16px; font-weight: 800; font-size: 1rem; cursor:pointer; transition: transform 0.2s;">Create & Join Session</button>
             </form>
         </div>
 
-        <div id="login-form" class="new-profile-form" style="display: none;">
-            <h3>Login: <span id="login-nickname"></span></h3>
+        <!-- Login Form -->
+        <div id="login-form" class="modal-form" style="display: none;">
+             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2 style="font-size: 1.5rem; font-weight: 800;"><span id="login-nickname"></span></h2>
+                <button onclick="hideAllForms()" style="background:none; border:none; color:var(--text-secondary); font-size: 1.5rem; cursor:pointer;">&times;</button>
+            </div>
             <form method="POST">
                 <input type="hidden" name="action" value="login">
                 <input type="hidden" name="nickname" id="hidden-nickname">
                 <div id="pin-group" class="form-group" style="display: none;">
-                    <label>Enter your 4-digit PIN</label>
-                    <input type="password" name="pin" maxlength="4" autofocus>
+                    <label>Enter 4-Digit PIN</label>
+                    <input type="password" name="pin" maxlength="4" autofocus placeholder="****">
                 </div>
-                <button type="submit" class="btn" style="width: 100%; background-color: var(--accent-blue);">Enter Session</button>
-                <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;" onclick="hideLoginForm()">Cancel</button>
+                <button type="submit" style="width: 100%; background: var(--accent-green); color: #fff; border:none; padding: 1.25rem; border-radius: 16px; font-weight: 800; font-size: 1rem; cursor:pointer; transition: transform 0.2s;">Access Brain</button>
+                <p style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.85rem;">Don't worry, your data is safe locally.</p>
             </form>
         </div>
     </div>
 
     <script>
-        function toggleNewForm() {
-            document.getElementById('new-profile').style.display = 'block';
+        function hideAllForms() {
+            document.getElementById('new-profile').style.display = 'none';
             document.getElementById('login-form').style.display = 'none';
         }
 
+        function toggleNewForm() {
+            hideAllForms();
+            document.getElementById('new-profile').style.display = 'block';
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
         function selectProfile(nickname, hasPin) {
-            document.getElementById('new-profile').style.display = 'none';
+            hideAllForms();
             document.getElementById('login-form').style.display = 'block';
             document.getElementById('login-nickname').textContent = nickname;
             document.getElementById('hidden-nickname').value = nickname;
             
             const pinGroup = document.getElementById('pin-group');
+            const pinInput = pinGroup.querySelector('input');
             if (hasPin) {
                 pinGroup.style.display = 'block';
-                pinGroup.querySelector('input').required = true;
+                pinInput.required = true;
+                pinInput.focus();
             } else {
                 pinGroup.style.display = 'none';
-                pinGroup.querySelector('input').required = false;
+                pinInput.required = false;
             }
-        }
-
-        function hideLoginForm() {
-            document.getElementById('login-form').style.display = 'none';
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }
     </script>
 </body>
