@@ -28,22 +28,23 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 
 def detect_backend() -> tuple[str, str]:
-    """Auto-detect the best available LLM backend."""
+    """Auto-detect the best available LLM backend with free-tier safety."""
     target = os.environ.get("LLM_BACKEND", "auto").lower()
     gemini_key = os.environ.get("GEMINI_API_KEY")
     
     # Force Gemini
     if target == "gemini" and GEMINI_AVAILABLE and gemini_key:
-        return "gemini", "gemini-2.0-flash"
+        return "gemini", "gemini-1.5-flash" # More stable for free-tier
         
     # Force Ollama
     if target == "ollama" and OLLAMA_AVAILABLE:
         model = detect_model()
         if model: return "ollama", model
         
-    # Auto-detect
+    # Auto-detect logic
     if GEMINI_AVAILABLE and gemini_key:
-        return "gemini", "gemini-2.0-flash"
+        # Default to 1.5-flash for free-tier reliability
+        return "gemini", "gemini-1.5-flash"
         
     if OLLAMA_AVAILABLE:
         try:
@@ -137,7 +138,7 @@ class BaseAgent:
             return self._call_ollama(messages)
         return self._offline_response(messages[-1]["content"])
 
-    def _call_gemini(self, messages: list[dict]) -> str:
+    def _call_gemini(self, messages: list[dict], attempt_lite: bool = True) -> str:
         try:
             gemini_history = []
             for msg in messages:
@@ -155,7 +156,24 @@ class BaseAgent:
                 return chat.send_message(current["parts"][0]).text
             return self._gemini_model.generate_content(messages[-1]["content"]).text
         except Exception as e:
-            return f"⚠️ Gemini Error: {e}"
+            err_msg = str(e)
+            # Handle Quota / Resource Exhausted
+            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                if attempt_lite and self.model != "gemini-1.5-flash-8b":
+                    print(f"DEBUG: Gemini Quota hit. Attempting 1.5-Flash-8b fallback for {self.name}...")
+                    try:
+                        lite_model = genai.GenerativeModel("gemini-1.5-flash-8b")
+                        # Simple one-off generation for fallback to avoid complex chat state issues
+                        prompt = f"{self.system_prompt}\n\nLast Message: {messages[-1]['content']}"
+                        return lite_model.generate_content(prompt).text
+                    except Exception:
+                        pass
+                return "⚠️ Udene Brain is resting (Free Tier Quota). Try again in 60 seconds! ⏳"
+            
+            if "403" in err_msg or "PERMISSION_DENIED" in err_msg:
+                return "⚠️ Gemini API Key restriction. Please check your Google AI Studio settings. 🔐"
+                
+            return f"⚠️ Gemini Error: {err_msg}"
 
     def _call_ollama(self, messages: list[dict]) -> str:
         if not self.model:
