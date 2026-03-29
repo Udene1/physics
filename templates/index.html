@@ -3,48 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Learning Companion | Math · Physics · Hardware</title>
+    <title>Udene Physics | AI Learning Companion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
+    <!-- Background Decor -->
+    <div class="bg-glow"></div>
+
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <div class="logo">🧠</div>
-                <h1>Companion</h1>
+                <div class="logo">⚛️</div>
+                <h1>Udene</h1>
             </div>
             
             <nav class="sidebar-nav">
                 <button class="nav-item active" onclick="showSection('chat')">
-                    <span class="icon">💬</span> Chat
+                    <span class="icon">💬</span> <span>Learning Chat</span>
                 </button>
                 <button class="nav-item" onclick="loadReport()">
-                    <span class="icon">📊</span> Progress
+                    <span class="icon">📊</span> <span>Performance</span>
                 </button>
                 <button class="nav-item" onclick="loadCurriculum()">
-                    <span class="icon">⚛️</span> Curriculum
+                    <span class="icon">🧬</span> <span>Curriculum</span>
                 </button>
             </nav>
 
             <div class="sidebar-footer">
-            <div id="student-info">
-                <strong>👤 <span id="current-nickname">{{ session.get('nickname', 'Guest') }}</span></strong>
-                <span>🔥 <span id="current-streak">{{ session.get('streak', 0) }}</span> day streak</span>
+                <div id="student-info">
+                    <strong>👤 <span id="current-nickname">{{ session.get('nickname', 'Guest') }}</span></strong>
+                    <span>🔥 <span id="current-streak">{{ session.get('streak', 0) }}</span> day streak</span>
+                </div>
+                <div class="footer-links">
+                    <a href="{{ url_for('switch_profile') }}" class="footer-link">🔄 Switch</a>
+                    <a href="{{ url_for('logout') }}" class="footer-link">Logout</a>
+                </div>
+                <div class="status-badge">
+                    <span class="status-dot"></span>
+                    <span id="backend-info">{{ backend or 'Offline' }}</span>
+                </div>
             </div>
-            <div class="footer-links">
-                <a href="{{ url_for('switch_profile') }}" class="footer-link">🔄 Switch</a>
-                <a href="{{ url_for('logout') }}" class="footer-link">🚪 Logout</a>
-            </div>
-            <div class="status-badge">
-                <span class="status-dot"></span>
-                <span id="backend-info">{{ backend or 'Offline' }}</span>
-            </div>
-        </div>
         </aside>
 
         <!-- Main Content -->
@@ -52,52 +55,51 @@
             <!-- Chat Section -->
             <section id="chat-section" class="content-section active">
                 <div class="chat-header">
-                    <h2>Learning Session</h2>
+                    <h2>Session: {{ session.get('nickname', 'Explorer') }}</h2>
                     <div class="header-actions">
-                        <button class="btn btn-secondary" onclick="clearChat()">Clear Hist</button>
+                        <button class="btn btn-secondary" onclick="clearChat()" style="background: rgba(255,255,255,0.05); color: #9ca3af; border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8rem; cursor: pointer;">Clear Chat</button>
                     </div>
                 </div>
                 
                 <div id="chat-messages" class="chat-messages">
-                    <!-- Messages will be injected here -->
                     <div class="message assistant-message">
-                        <div class="message-label">🌟 Companion</div>
+                        <div class="message-label">🌟 UDENE COMPANION</div>
                         <div class="message-content">
-                            Hello! I'm your AI Learning Companion. Ready to dive into Math, Physics, or Hardware today? 🚀
+                            Kedu! I'm your AI Learning Companion. Ready to solve some Physics or Hardware challenges today? 🚀
                         </div>
                     </div>
                 </div>
 
                 <div class="chat-input-container">
                     <div class="quick-commands">
-                        <button onclick="setInput('/problems algebra')">/problems</button>
-                        <button onclick="setInput('/curriculum')">/curriculum</button>
-                        <button onclick="setInput('/builds')">/builds</button>
-                        <button onclick="setInput('/report')">/report</button>
+                        <button onclick="setInput('/problems algebra')">Algebra</button>
+                        <button onclick="setInput('/study kinematics')">Kinematics</button>
+                        <button onclick="setInput('/curriculum')">Curriculum</button>
+                        <button onclick="setInput('/report')">My Progress</button>
                     </div>
                     <form id="chat-form" class="chat-form">
-                        <input type="text" id="user-input" placeholder="Ask me something or use a command..." autocomplete="off">
+                        <input type="text" id="user-input" placeholder="Enter command or message..." autocomplete="off">
                         <button type="submit" id="send-btn">Send</button>
                     </form>
                 </div>
             </section>
 
-            <!-- Report Section (Hidden by default) -->
+            <!-- Report Section -->
             <section id="report-section" class="content-section">
                 <div class="chat-header">
-                    <h2>Progress Report</h2>
-                    <button class="btn btn-secondary" onclick="showSection('chat')">Back to Chat</button>
+                    <h2>Your Performance Log</h2>
+                    <button class="btn btn-secondary" onclick="showSection('chat')" style="background: var(--accent-blue); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer;">Back to Chat</button>
                 </div>
                 <div id="report-content" class="report-content markdown-body">
-                    Loading report...
+                    Fetching your data...
                 </div>
             </section>
 
-             <!-- Curriculum Section (Hidden by default) -->
+             <!-- Curriculum Section -->
              <section id="curriculum-section" class="content-section">
                 <div class="chat-header">
-                    <h2>Physics Curriculum</h2>
-                    <button class="btn btn-secondary" onclick="showSection('chat')">Back to Chat</button>
+                    <h2>STEM Journey Map</h2>
+                    <button class="btn btn-secondary" onclick="showSection('chat')" style="background: var(--accent-blue); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer;">Back to Chat</button>
                 </div>
                 <div id="curriculum-content" class="report-content markdown-body">
                     Loading curriculum...

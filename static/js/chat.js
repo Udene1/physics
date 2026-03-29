@@ -1,3 +1,13 @@
+// Configure Marked for better math/code rendering
+if (window.marked) {
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false
+    });
+}
+
 const chatForm = document.getElementById('chat-form');
 const userInput = document.getElementById('user-input');
 const chatMessages = document.getElementById('chat-messages');
@@ -11,7 +21,7 @@ chatForm.addEventListener('submit', async (e) => {
     if (!message) return;
 
     // Add user message to UI
-    appendMessage('user', '🧑 You', message);
+    appendMessage('user', '🧑 STUDENt', message);
     userInput.value = '';
     
     // Show typing indicator
@@ -28,13 +38,13 @@ chatForm.addEventListener('submit', async (e) => {
         removeTypingIndicator(typingId);
         
         if (data.response) {
-            appendMessage('assistant', data.label, data.response);
+            appendMessage('assistant', data.label || '🌟 UDENE COMPANION', data.response);
             if (data.backend) {
-                backendInfo.textContent = `${data.backend} (${data.model || 'offline'})`;
+                backendInfo.textContent = `${data.backend} (${data.model || 'cloud'})`;
             }
             // Update streak counter if present
             if (data.streak !== undefined) {
-                const streakEl = document.getElementById('streak-counter');
+                const streakEl = document.getElementById('current-streak');
                 if (streakEl) streakEl.textContent = data.streak;
             }
 
@@ -45,11 +55,11 @@ chatForm.addEventListener('submit', async (e) => {
                 });
             }
         } else if (data.error) {
-            appendMessage('assistant', '⚠️ Error', `Sorry, something went wrong: ${data.error}`);
+            appendMessage('assistant', '⚠️ ERROR', `Sorry, something went wrong: ${data.error}`);
         }
     } catch (err) {
         removeTypingIndicator(typingId);
-        appendMessage('assistant', '⚠️ Error', `Connection failed: ${err.message}`);
+        appendMessage('assistant', '⚠️ ERROR', `Connection failed: ${err.message}`);
     }
 });
 
@@ -57,7 +67,7 @@ function showBadgeNotification(badgeName) {
     const toast = document.createElement('div');
     toast.className = 'badge-toast';
     toast.innerHTML = `
-        <div class="toast-icon">🏅</div>
+        <div class="toast-icon">✨</div>
         <div class="toast-body">
             <strong>Badge Unlocked!</strong>
             <div>${badgeName}</div>
@@ -124,12 +134,18 @@ function showSection(sectionId) {
     document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     
-    document.getElementById(`${sectionId}-section`).classList.add('active');
+    const targetSection = document.getElementById(`${sectionId}-section`);
+    if (targetSection) targetSection.classList.add('active');
     
     // Find button that matches
     const navBtns = document.querySelectorAll('.nav-item');
     navBtns.forEach(btn => {
-        if (btn.textContent.toLowerCase().includes(sectionId)) {
+        // Match by sectionId link in JS or hidden data attribute ideally,
+        // but for now let's use the text mapping
+        const text = btn.textContent.toLowerCase();
+        if ((sectionId === 'chat' && text.includes('chat')) ||
+            (sectionId === 'report' && text.includes('performance')) ||
+            (sectionId === 'curriculum' && text.includes('curriculum'))) {
             btn.classList.add('active');
         }
     });
@@ -137,13 +153,13 @@ function showSection(sectionId) {
 
 function clearChat() {
     chatMessages.innerHTML = '';
-    appendMessage('assistant', '🌟 Companion', 'Session history cleared. How can I help you now?');
+    appendMessage('assistant', '🌟 UDENE COMPANION', 'History cleared. What should we learn next?');
 }
 
 async function loadReport() {
     showSection('report');
     const container = document.getElementById('report-content');
-    container.innerHTML = 'Loading latest progress...';
+    container.innerHTML = 'Analyzing your performance...';
     
     try {
         const resp = await fetch('/report');
@@ -157,7 +173,7 @@ async function loadReport() {
 async function loadCurriculum() {
     showSection('curriculum');
     const container = document.getElementById('curriculum-content');
-    container.innerHTML = 'Loading curriculum...';
+    container.innerHTML = 'Mapping your journey...';
     
     try {
         const resp = await fetch('/curriculum');
