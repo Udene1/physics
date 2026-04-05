@@ -22,6 +22,18 @@ try:
 except ImportError:
     GEMINI_AVAILABLE = False
 
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
+
+try:
+    from mistralai import Mistral as MistralClient
+    MISTRAL_AVAILABLE = True
+except ImportError:
+    MISTRAL_AVAILABLE = False
+
 
 # Hardware/Environment Config - Removed module globals for late-binding with .env
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
@@ -41,10 +53,26 @@ def detect_backend() -> tuple[str, str]:
         model = detect_model()
         if model: return "ollama", model
         
+    # Groq Support (The LPU Llama-3-70b provider, NOT Grok)
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if target == "groq" and GROQ_AVAILABLE and groq_key:
+        return "groq", "llama-3.1-70b-versatile"
+
+    # Mistral Support
+    mistral_key = os.environ.get("MISTRAL_API_KEY")
+    if target == "mistral" and MISTRAL_AVAILABLE and mistral_key:
+        return "mistral", "mistral-small-latest"
+
     # Auto-detect logic
     if GEMINI_AVAILABLE and gemini_key:
-        # Default to 1.5-flash for free-tier reliability
-        return "gemini", "gemini-1.5-flash"
+        # Using -latest aliases often resolves 404s on newer free-tier accounts
+        return "gemini", "models/gemini-1.5-flash-latest"
+        
+    if GROQ_AVAILABLE and groq_key:
+        return "groq", "llama-3.1-70b-versatile"
+
+    if MISTRAL_AVAILABLE and mistral_key:
+        return "mistral", "mistral-small-latest"
         
     if OLLAMA_AVAILABLE:
         try:
@@ -113,6 +141,20 @@ class BaseAgent:
                 )
             except Exception: self._backend = "offline"
 
+        self._groq_client = None
+        groq_key = os.environ.get("GROQ_API_KEY")
+        if self._backend == "groq" and GROQ_AVAILABLE and groq_key:
+            try:
+                self._groq_client = Groq(api_key=groq_key)
+            except Exception: self._backend = "offline"
+
+        self._mistral_client = None
+        mistral_key = os.environ.get("MISTRAL_API_KEY")
+        if self._backend == "mistral" and MISTRAL_AVAILABLE and mistral_key:
+            try:
+                self._mistral_client = MistralClient(api_key=mistral_key)
+            except Exception: self._backend = "offline"
+
     def _get_history(self, student_id: int) -> list[dict]:
         if student_id not in self.histories:
             self.histories[student_id] = []
@@ -134,6 +176,10 @@ class BaseAgent:
     def _call_llm(self, messages: list[dict]) -> str:
         if self._backend == "gemini":
             return self._call_gemini(messages)
+        if self._backend == "groq":
+            return self._call_groq(messages)
+        if self._backend == "mistral":
+            return self._call_mistral(messages)
         if self._backend == "ollama":
             return self._call_ollama(messages)
         return self._offline_response(messages[-1]["content"])
@@ -157,23 +203,66 @@ class BaseAgent:
             return self._gemini_model.generate_content(messages[-1]["content"]).text
         except Exception as e:
             err_msg = str(e)
+            
+            # 404 / NotFound Fallback (New Keys sometimes mismatch on model names)
+            if "404" in err_msg or "not found" in err_msg.lower():
+                if attempt_lite:
+                    for alt in ["models/gemini-1.5-flash", "gemini-1.5-flash", "models/gemini-1.5-flash-8b"]:
+                        if alt == self.model: continue
+                        print(f"DEBUG: Gemini 404. Probing {alt}...")
+                        try:
+                            alt_model = genai.GenerativeModel(alt)
+                            return alt_model.generate_content(messages[-1]["content"]).text
+                        except Exception: continue
+
             # Handle Quota / Resource Exhausted
             if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                if attempt_lite and self.model != "gemini-1.5-flash-8b":
-                    print(f"DEBUG: Gemini Quota hit. Attempting 1.5-Flash-8b fallback for {self.name}...")
+                if attempt_lite and "8b" not in self.model:
                     try:
-                        lite_model = genai.GenerativeModel("gemini-1.5-flash-8b")
-                        # Simple one-off generation for fallback to avoid complex chat state issues
+                        lite_model = genai.GenerativeModel("models/gemini-1.5-flash-8b")
                         prompt = f"{self.system_prompt}\n\nLast Message: {messages[-1]['content']}"
                         return lite_model.generate_content(prompt).text
-                    except Exception:
-                        pass
+                    except Exception: pass
                 return "⚠️ Udene Brain is resting (Free Tier Quota). Try again in 60 seconds! ⏳"
             
             if "403" in err_msg or "PERMISSION_DENIED" in err_msg:
                 return "⚠️ Gemini API Key restriction. Please check your Google AI Studio settings. 🔐"
                 
             return f"⚠️ Gemini Error: {err_msg}"
+
+    def _call_groq(self, messages: list[dict]) -> str:
+        if not self._groq_client:
+            return self._offline_response(messages[-1]["content"])
+        try:
+            # Flatten messages for Groq format
+            completion = self._groq_client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0.7,
+                stream=False
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            err_msg = str(e)
+            if "429" in err_msg:
+                return "⚠️ Groq LPU is busy. Switching back to Gemini logic... ⚡"
+            return f"⚠️ Groq Error: {err_msg}"
+
+    def _call_mistral(self, messages: list[dict]) -> str:
+        if not self._mistral_client:
+            return self._offline_response(messages[-1]["content"])
+        try:
+            # Mistral messages format is similar to OpenAI
+            response = self._mistral_client.chat.complete(
+                model=self.model,
+                messages=messages
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            err_msg = str(e)
+            if "429" in err_msg:
+                return "⚠️ Mistral is cooling down. Falling back to next available backend... 🌬️"
+            return f"⚠️ Mistral Error: {err_msg}"
 
     def _call_ollama(self, messages: list[dict]) -> str:
         if not self.model:

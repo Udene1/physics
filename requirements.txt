@@ -4,9 +4,11 @@ sympy
 numpy
 matplotlib
 
-# Web App & Gemini
+# Web App & LLMs
 flask
 google-generativeai
+groq
+mistralai
 gunicorn
 python-dotenv
 requests
