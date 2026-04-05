@@ -9,6 +9,7 @@ flask
 google-generativeai
 groq
 mistralai
+reportlab
 gunicorn
 python-dotenv
 requests

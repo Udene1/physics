@@ -6,15 +6,24 @@ Deployable to pxxl.app.
 """
 
 import os
+import json
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables FIRST
 load_dotenv()
 
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file
 from functools import wraps
 from main import init_agents, handle_message
-from tools.pdf_generator import generate_student_report
-from flask import send_file
+
+# Graceful optional imports
+try:
+    from tools.pdf_generator import generate_student_report
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+    print("WARNING: 'reportlab' not found. PDF Exporting disabled.")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "udene-physics-secret-shared-laptop")
@@ -145,6 +154,9 @@ def get_curriculum():
 @login_required
 def export_report():
     """Generate and download a PDF progress report."""
+    if not PDF_AVAILABLE:
+        return jsonify({"error": "PDF Exporting is temporarily disabled on this server (Missing reportlab)."}), 503
+        
     student_id = session.get('student_id')
     nickname = session.get('nickname')
     
