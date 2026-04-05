@@ -88,7 +88,10 @@
             <section id="report-section" class="content-section">
                 <div class="chat-header">
                     <h2>Your Performance Log</h2>
-                    <button class="btn btn-secondary" onclick="showSection('chat')" style="background: var(--accent-blue); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer;">Back to Chat</button>
+                    <div class="header-actions">
+                        <a href="/export/report" class="btn btn-secondary" style="background: var(--accent-green); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer; text-decoration:none; display:inline-block; margin-right: 10px;">📄 Download PDF</a>
+                        <button class="btn btn-secondary" onclick="showSection('chat')" style="background: var(--accent-blue); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer;">Back to Chat</button>
+                    </div>
                 </div>
                 <div id="report-content" class="report-content markdown-body">
                     Fetching your data...

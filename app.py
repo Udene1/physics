@@ -12,8 +12,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
 from main import init_agents, handle_message
+from tools.pdf_generator import generate_student_report
+from flask import send_file
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "udene-physics-secret-shared-laptop")
@@ -139,6 +140,43 @@ def get_curriculum():
     student_id = session.get('student_id')
     overview = agents["physics"].get_curriculum_overview(student_id)
     return jsonify({"curriculum": overview})
+
+@app.route('/export/report')
+@login_required
+def export_report():
+    """Generate and download a PDF progress report."""
+    student_id = session.get('student_id')
+    nickname = session.get('nickname')
+    
+    # Get stats and mastery
+    stats_raw = db.get_stats(student_id)
+    # Convert DB row/dict to what pdf_generator expects
+    stats = {
+        "streak": stats_raw.get('streak_days', 0),
+        "total_interactions": db.conn.execute(
+            "SELECT COUNT(*) FROM interactions WHERE student_id = ?", (student_id,)
+        ).fetchone()[0],
+        "badges": json.loads(stats_raw.get('badges_json', '[]'))
+    }
+    
+    mastery_raw = db.get_all_mastery(student_id)
+    mastery_list = [
+        {"topic": m['topic'], "category": m['category'], "score": m['score']} 
+        for m in mastery_raw
+    ]
+    
+    # Create temp directory for exports if it doesn't exist
+    export_dir = os.path.join(os.path.dirname(__file__), "memory", "exports")
+    os.makedirs(export_dir, exist_ok=True)
+    
+    filename = f"Udene_Report_{nickname}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    output_path = os.path.join(export_dir, filename)
+    
+    try:
+        generate_student_report(nickname, stats, mastery_list, output_path)
+        return send_file(output_path, as_attachment=True)
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
 
 if __name__ == '__main__':
     # Use environment variables for port to support cloud hosting

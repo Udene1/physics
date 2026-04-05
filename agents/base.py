@@ -135,23 +135,45 @@ class BaseAgent:
         if self._backend == "gemini" and GEMINI_AVAILABLE and gemini_key:
             try:
                 genai.configure(api_key=gemini_key)
+                # First attempt with requested model
                 self._gemini_model = genai.GenerativeModel(
                     self.model,
                     system_instruction=self.system_prompt
                 )
-            except Exception: self._backend = "offline"
+                # Verify immediately with a dummy call or ListModels
+                # New: List available models to find a working alias if default fails
+                try:
+                    # Quick check: can we even see this model?
+                    genai.get_model(self.model)
+                except Exception:
+                    print(f"DEBUG: {self.model} not found. Enumerating available models...")
+                    available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                    flash_models = [m for m in available if 'flash' in m.lower()]
+                    if flash_models:
+                        new_model = flash_models[0]
+                        print(f"DEBUG: Found valid model: {new_model}")
+                        self.model = new_model
+                        self._gemini_model = genai.GenerativeModel(
+                            self.model,
+                            system_instruction=self.system_prompt
+                        )
+            except Exception as e:
+                print(f"WARNING: Gemini Init failed: {e}")
+                self._backend = "offline"
 
         self._groq_client = None
         groq_key = os.environ.get("GROQ_API_KEY")
         if self._backend == "groq" and GROQ_AVAILABLE and groq_key:
             try:
-                self._groq_client = Groq(api_key=groq_key)
+                # Set a reasonable timeout for Groq
+                self._groq_client = Groq(api_key=groq_key, timeout=20.0)
             except Exception: self._backend = "offline"
 
         self._mistral_client = None
         mistral_key = os.environ.get("MISTRAL_API_KEY")
         if self._backend == "mistral" and MISTRAL_AVAILABLE and mistral_key:
             try:
+                # Mistral client also supports timeout passing in complete()
                 self._mistral_client = MistralClient(api_key=mistral_key)
             except Exception: self._backend = "offline"
 
@@ -174,15 +196,26 @@ class BaseAgent:
         return messages
 
     def _call_llm(self, messages: list[dict]) -> str:
-        if self._backend == "gemini":
-            return self._call_gemini(messages)
-        if self._backend == "groq":
-            return self._call_groq(messages)
-        if self._backend == "mistral":
-            return self._call_mistral(messages)
-        if self._backend == "ollama":
-            return self._call_ollama(messages)
-        return self._offline_response(messages[-1]["content"])
+        start_time = time.time()
+        print(f"DEBUG: [{self.name}] Calling {self._backend} ({self.model})...")
+        try:
+            if self._backend == "gemini":
+                res = self._call_gemini(messages)
+            elif self._backend == "groq":
+                res = self._call_groq(messages)
+            elif self._backend == "mistral":
+                res = self._call_mistral(messages)
+            elif self._backend == "ollama":
+                res = self._call_ollama(messages)
+            else:
+                res = self._offline_response(messages[-1]["content"])
+            
+            elapsed = time.time() - start_time
+            print(f"DEBUG: [{self.name}] Response received in {elapsed:.2f}s")
+            return res
+        except Exception as e:
+            print(f"ERROR: [{self.name}] LLM call crashed: {e}")
+            return f"⚠️ Udene Brain encountered a technical glitch: {e}"
 
     def _call_gemini(self, messages: list[dict], attempt_lite: bool = True) -> str:
         try:
@@ -255,7 +288,8 @@ class BaseAgent:
             # Mistral messages format is similar to OpenAI
             response = self._mistral_client.chat.complete(
                 model=self.model,
-                messages=messages
+                messages=messages,
+                timeout_ms=20000 # 20 seconds
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -268,10 +302,15 @@ class BaseAgent:
         if not self.model:
             return self._offline_response(messages[-1]["content"])
         try:
-            response = self._ollama_client.chat(model=self.model, messages=messages)
+            # Set a 30-second timeout for local Ollama
+            response = self._ollama_client.chat(
+                model=self.model, 
+                messages=messages,
+                options={"timeout": 30}
+            )
             return response["message"]["content"]
         except Exception as e:
-            return f"⚠️ Ollama Error: {e}"
+            return f"⚠️ Ollama Error: {e} (Connection Timeout)"
 
     def _offline_response(self, user_msg: str) -> str:
         return (f"🔌 [{self.name}] Offline.\nBuild more, learn more! 💪\n"
