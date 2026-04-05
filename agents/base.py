@@ -53,26 +53,25 @@ def detect_backend() -> tuple[str, str]:
         model = detect_model()
         if model: return "ollama", model
         
-    # Groq Support (The LPU Llama-3-70b provider, NOT Grok)
+    # 1. Mistral Support (Promoted to Primary as requested)
+    mistral_key = os.environ.get("MISTRAL_API_KEY")
+    if MISTRAL_AVAILABLE and mistral_key:
+        if target in ["auto", "mistral"]:
+            return "mistral", "mistral-small-latest"
+
+    # 2. Gemini Support
+    if GEMINI_AVAILABLE and gemini_key:
+        if target in ["auto", "gemini"]:
+            # Using -latest aliases often resolves 404s on newer free-tier accounts
+            return "gemini", "models/gemini-1.5-flash-latest"
+
+    # 3. Groq Support (The LPU Llama-3-70b provider)
     groq_key = os.environ.get("GROQ_API_KEY")
     if target == "groq" and GROQ_AVAILABLE and groq_key:
         return "groq", "llama-3.1-70b-versatile"
-
-    # Mistral Support
-    mistral_key = os.environ.get("MISTRAL_API_KEY")
-    if target == "mistral" and MISTRAL_AVAILABLE and mistral_key:
-        return "mistral", "mistral-small-latest"
-
-    # Auto-detect logic
-    if GEMINI_AVAILABLE and gemini_key:
-        # Using -latest aliases often resolves 404s on newer free-tier accounts
-        return "gemini", "models/gemini-1.5-flash-latest"
         
     if GROQ_AVAILABLE and groq_key:
         return "groq", "llama-3.1-70b-versatile"
-
-    if MISTRAL_AVAILABLE and mistral_key:
-        return "mistral", "mistral-small-latest"
         
     if OLLAMA_AVAILABLE:
         try:
