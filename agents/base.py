@@ -46,7 +46,7 @@ def detect_backend() -> tuple[str, str]:
     
     # Force Gemini
     if target == "gemini" and GEMINI_AVAILABLE and gemini_key:
-        return "gemini", "gemini-1.5-flash" # More stable for free-tier
+        return "gemini", "gemini-3-flash-preview" # Latest power model
         
     # Force Ollama
     if target == "ollama" and OLLAMA_AVAILABLE:
@@ -63,7 +63,7 @@ def detect_backend() -> tuple[str, str]:
     if GEMINI_AVAILABLE and gemini_key:
         if target in ["auto", "gemini"]:
             # Using -latest aliases often resolves 404s on newer free-tier accounts
-            return "gemini", "models/gemini-1.5-flash-latest"
+            return "gemini", "models/gemini-3-flash-preview"
 
     # 3. Groq Support (The LPU Llama-3-70b provider)
     groq_key = os.environ.get("GROQ_API_KEY")
