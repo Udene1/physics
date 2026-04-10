@@ -25,13 +25,18 @@ class MathTutorAgent(BaseAgent):
         super().__init__(name="MathTutor", system_prompt=system_prompt, **kwargs)
         self.verifier = MathVerifier()
         self.generator = ProblemGenerator()
-        # Per-student state: {student_id: {"problems": [], "index": 0}}
-        self.states = {}
 
-    def _get_student_state(self, student_id: int) -> dict:
-        if student_id not in self.states:
-            self.states[student_id] = {"problems": [], "index": 0}
-        return self.states[student_id]
+    def get_student_state(self, student_id: int) -> dict:
+        if self.db:
+            state = self.db.get_agent_state(student_id, self.name)
+            if not state:
+                state = {"problems": [], "index": 0}
+            return state
+        return {"problems": [], "index": 0}
+
+    def _save_student_state(self, student_id: int, state: dict):
+        if self.db:
+            self.db.set_agent_state(student_id, self.name, state)
 
     def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
         """Enhanced chat that detects verification requests and problem commands."""
@@ -54,7 +59,7 @@ class MathTutorAgent(BaseAgent):
             return self._give_hint(student_id)
 
         # Check for numeric or symbolic "naked" answers if a problem is active
-        state = self._get_student_state(student_id)
+        state = self.get_student_state(student_id)
         if state["problems"] and not user_msg.startswith("/"):
             # If the user just sends something like "42" or "x+1", try to verify it
             # We assume it's an answer if it doesn't clearly match a command
@@ -97,9 +102,10 @@ class MathTutorAgent(BaseAgent):
                     break
 
         problems = self.generator.generate(topic_name, difficulty=difficulty, count=3)
-        state = self._get_student_state(student_id)
+        state = self.get_student_state(student_id)
         state["problems"] = problems
         state["index"] = 0
+        self._save_student_state(student_id, state)
         
         if not problems or not problems[0]["statement"]:
             return f"Sorry, I couldn't generate problems for '{topic_name}'. Try 'algebra' or 'calculus'."
@@ -113,7 +119,7 @@ class MathTutorAgent(BaseAgent):
 
     def _handle_verify(self, student_id: int, user_msg: str) -> str:
         """Verify the user's answer against the current problem."""
-        state = self._get_student_state(student_id)
+        state = self.get_student_state(student_id)
         if not state["problems"]:
             return "I don't have a problem active for you. Type `/problems` to start!"
             
@@ -152,11 +158,12 @@ class MathTutorAgent(BaseAgent):
 
     def _next_problem(self, student_id: int) -> str:
         """Move to the next problem in the current set."""
-        state = self._get_student_state(student_id)
+        state = self.get_student_state(student_id)
         if not state["problems"]:
             return "No active problem set. Type `/problems` to get some!"
             
         state["index"] += 1
+        self._save_student_state(student_id, state)
         if state["index"] >= len(state["problems"]):
             return (
                 "🏁 You've finished this practice set! "
@@ -172,7 +179,7 @@ class MathTutorAgent(BaseAgent):
 
     def _give_hint(self, student_id: int) -> str:
         """Provide a hint for the current problem based on the LLM's logic."""
-        state = self._get_student_state(student_id)
+        state = self.get_student_state(student_id)
         if not state["problems"]:
             return "I can only give hints if we are solving a specific problem. Type `/problems` to start."
             

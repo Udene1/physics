@@ -20,7 +20,9 @@ class ProgressDB:
     """Lightweight SQLite wrapper for all persistent learning state."""
 
     def __init__(self, db_path: str = DEFAULT_DB_PATH):
-        os.makedirs(os.path.dirname(db_path) if db_path != ":memory:" else ".", exist_ok=True)
+        db_dir = os.path.dirname(db_path)
+        if db_dir and db_path != ":memory:":
+            os.makedirs(db_dir, exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
@@ -109,7 +111,16 @@ class ProgressDB:
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS agent_states (
+                student_id INTEGER NOT NULL,
+                agent_name TEXT NOT NULL,
+                state_json TEXT NOT NULL,
+                PRIMARY KEY (student_id, agent_name),
+                FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+            );
         """)
+
         self.conn.commit()
 
     def _migrate_if_needed(self):
@@ -418,6 +429,27 @@ class ProgressDB:
             """INSERT INTO session_meta (key, value) VALUES (?, ?)
                ON CONFLICT(key) DO UPDATE SET value = ?""",
             (key, value, value),
+        )
+        self.conn.commit()
+
+    # ── Agent Persistent States ───────────────────────────────────
+
+    def get_agent_state(self, student_id: int, agent_name: str) -> dict:
+        row = self.conn.execute(
+            "SELECT state_json FROM agent_states WHERE student_id = ? AND agent_name = ?",
+            (student_id, agent_name)
+        ).fetchone()
+        if row:
+            return json.loads(row["state_json"])
+        return {}
+
+    def set_agent_state(self, student_id: int, agent_name: str, state: dict):
+        state_json = json.dumps(state)
+        self.conn.execute(
+            """INSERT INTO agent_states (student_id, agent_name, state_json)
+               VALUES (?, ?, ?)
+               ON CONFLICT(student_id, agent_name) DO UPDATE SET state_json = ?""",
+            (student_id, agent_name, state_json, state_json)
         )
         self.conn.commit()
 

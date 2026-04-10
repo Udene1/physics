@@ -339,3 +339,9 @@ class BaseAgent:
     def reset_history(self, student_id: int):
         if student_id in self.histories:
             self.histories[student_id] = []
+
+    def get_student_state(self, student_id: int) -> dict:
+        """Fetch persistent agent state from DB."""
+        if self.db:
+            return self.db.get_agent_state(student_id, self.name)
+        return {}

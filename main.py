@@ -150,8 +150,8 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
     # keep it with Math Tutor for answers or session commands.
     if intent == "companion" and not msg.startswith("/"):
         math_agent = agents.get("math")
-        if math_agent and hasattr(math_agent, "states"):
-            state = math_agent.states.get(student_id, {})
+        if math_agent:
+            state = math_agent.get_student_state(student_id)
             if state.get("problems"):
                 # If it looks like a number/formula OR a specific session command
                 is_math_like = len(msg) < 20 and (any(c.isdigit() for c in msg) or any(c in "+-*/^()=" for c in msg))
