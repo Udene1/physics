@@ -144,6 +144,22 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
 
     # Route to agent
     intent = classify_intent(msg)
+    
+    # Check for session stickiness: If Math Tutor has an active problem,
+    # and the message doesn't look like a command for another agent,
+    # keep it with Math Tutor for answers or session commands.
+    if intent == "companion" and not msg.startswith("/"):
+        math_agent = agents.get("math")
+        if math_agent and hasattr(math_agent, "states"):
+            state = math_agent.states.get(student_id, {})
+            if state.get("problems"):
+                # If it looks like a number/formula OR a specific session command
+                is_math_like = len(msg) < 20 and (any(c.isdigit() for c in msg) or any(c in "+-*/^()=" for c in msg))
+                is_session_cmd = msg_lower in ("hint", "next", "next problem", "give me a hint")
+                
+                if is_math_like or is_session_cmd:
+                    intent = "math"
+
     agent = agents[intent]
     label = AGENT_LABELS.get(intent, "🤖 Agent")
     

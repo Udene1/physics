@@ -53,6 +53,13 @@ class MathTutorAgent(BaseAgent):
         if msg_lower in ("/hint", "hint", "give me a hint"):
             return self._give_hint(student_id)
 
+        # Check for numeric or symbolic "naked" answers if a problem is active
+        state = self._get_student_state(student_id)
+        if state["problems"] and not user_msg.startswith("/"):
+            # If the user just sends something like "42" or "x+1", try to verify it
+            # We assume it's an answer if it doesn't clearly match a command
+            return self._handle_verify(student_id, user_msg)
+
         # Build mastery context for the tutor
         mastery_context = self._build_mastery_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
