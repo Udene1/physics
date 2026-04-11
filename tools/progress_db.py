@@ -119,6 +119,27 @@ class ProgressDB:
                 PRIMARY KEY (student_id, agent_name),
                 FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
             );
+
+            -- Distilled Knowledge Table (for local retrieval without LLM)
+            CREATE TABLE IF NOT EXISTS distilled_knowledge (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                topic TEXT UNIQUE,
+                category TEXT,
+                content TEXT,
+                source_llm TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Learning Signals Table (for future training/analytics)
+            CREATE TABLE IF NOT EXISTS learning_signals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER,
+                topic TEXT,
+                signal_type TEXT, -- 'speed', 'mistake_count', 'hint_usage'
+                value REAL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+            );
         """)
 
         self.conn.commit()
@@ -546,9 +567,9 @@ class ProgressDB:
 
     def get_all_topics(self, category: str = None) -> list[dict]:
         if category:
-            rows = self.conn.execute("SELECT * FROM topics WHERE category = ? ORDER BY difficulty, name", (category,)).fetchall()
+            rows = self.conn.execute("SELECT * FROM topics WHERE category = ? ORDER BY id", (category,)).fetchall()
         else:
-            rows = self.conn.execute("SELECT * FROM topics ORDER BY category, difficulty, name").fetchall()
+            rows = self.conn.execute("SELECT * FROM topics ORDER BY category, id").fetchall()
         
         results = []
         for r in rows:
@@ -559,3 +580,25 @@ class ProgressDB:
 
     def close(self):
         self.conn.close()
+    # --- Knowledge Distillation ---
+
+    def save_distilled_lesson(self, topic: str, category: str, content: str, source_llm: str):
+        """Save a high-quality lesson for future offline/fast retrieval."""
+        self.conn.execute('''
+            INSERT OR REPLACE INTO distilled_knowledge (topic, category, content, source_llm)
+            VALUES (?, ?, ?, ?)
+        ''', (topic, category, content, source_llm))
+        self.conn.commit()
+
+    def get_distilled_lesson(self, topic: str) -> dict:
+        """Retrieve a previously distilled lesson."""
+        row = self.conn.execute('SELECT * FROM distilled_knowledge WHERE topic = ?', (topic,)).fetchone()
+        return dict(row) if row else None
+
+    def log_learning_signal(self, student_id: int, topic: str, signal_type: str, value: float):
+        """Log a granular learning signal for future model training."""
+        self.conn.execute('''
+            INSERT INTO learning_signals (student_id, topic, signal_type, value)
+            VALUES (?, ?, ?, ?)
+        ''', (student_id, topic, signal_type, value))
+        self.conn.commit()

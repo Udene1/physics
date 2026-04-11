@@ -97,14 +97,19 @@ hardware engineering in Benin City, Nigeria.
 YOUR RESPONSIBILITIES:
 1. TRACK mastery levels per physics topic (0-100% scale).
 2. ENFORCE prerequisites — NEVER allow a student to skip ahead without demonstrating mastery.
-3. ASSIGN study tasks from quality resources.
-4. assessment understanding through targeted questions.
-5. FLAG weak areas and FORCE review loops.
-6. APPROVE or BLOCK hardware project suggestions based on physics readiness.
+3. TEACH physics concepts from first principles when requested, using interactive "lesson notes".
+4. ASSIGN study tasks from quality resources.
+5. ASSESSMENT understanding through targeted questions.
+6. FLAG weak areas and FORCE review loops.
+7. APPROVE or BLOCK hardware project suggestions based on physics readiness.
 
 STRICTNESS RULES:
 - If mastery < 60% in prerequisites, BLOCK advancement.
 - Quality over speed. Deep understanding > surface coverage.
+
+TEACHING STYLE:
+- When giving a lesson, provide a concise but deep explanation of the "why" using local Nigerian analogies.
+- Always end a lesson with a "Check for Understanding" question.
 """
 
 
@@ -119,10 +124,59 @@ class PhysicsSupervisorAgent(BaseAgent):
         )
 
     def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
-        """Enhanced chat with curriculum and mastery context."""
+        """Enhanced chat with curriculum, mastery context, and lesson support."""
+        msg_lower = user_msg.lower().strip()
+
+        # Handle lesson/teaching requests
+        if msg_lower.startswith("/lesson") or msg_lower.startswith("/teach"):
+            topic = msg_lower.replace("/lesson", "").replace("/teach", "").strip() or "Mechanics"
+            return self.teach_topic(student_id, topic)
+
         mastery_context = self._build_physics_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
         return super().chat(user_msg, full_context, student_id=student_id)
+
+    def teach_topic(self, student_id: int, topic_name: str) -> str:
+        """
+        Provides interactive lesson notes on a topic, first checking for distilled local knowledge.
+        """
+        topic_name = topic_name.title().strip()
+        
+        # 1. Check distilled local knowledge first
+        if self.db:
+            distilled = self.db.get_distilled_lesson(topic_name)
+            if distilled:
+                return f"{distilled['content']}\n\n(✨ *Note: This lesson was served from my Local Knowledge Base.*)"
+
+        # 2. Check prerequisites first
+        prereqs = self.check_prerequisites(student_id, topic_name)
+        if not prereqs["allowed"]:
+            return prereqs["message"]
+
+        # 3. Generate new lesson via LLM
+        teaching_context = (
+            f"The student wants an interactive lesson on '{topic_name}'.\n"
+            "Provide 'Lesson Notes' that explain the first principles clearly. "
+            "Use a Nigerian analogy (e.g., transportation in Lagos, construction in Benin). "
+            "End with a specific 'Check for Understanding' question."
+        )
+        
+        lesson = super().chat(user_msg=f"Give me a lesson on {topic_name}", context=teaching_context, student_id=student_id)
+        
+        # 4. Save to local DB for distillation
+        if self.db and "Offline" not in lesson:
+            self.db.save_distilled_lesson(topic_name, "physics", lesson, self.model)
+
+        if self.db:
+            self.db.log_interaction(
+                student_id=student_id,
+                agent="PhysicsSupervisor",
+                topic=topic_name,
+                user_input=f"/lesson {topic_name}",
+                agent_response=lesson,
+                result="lesson"
+            )
+        return lesson
 
     def check_prerequisites(self, student_id: int, target_topic: str) -> dict:
         """Check if the student meets prerequisites for a topic using DB topics table."""
@@ -255,3 +309,51 @@ class PhysicsSupervisorAgent(BaseAgent):
         for m in physics:
             lines.append(f"  - {m['topic']}: {m['score']}%")
         return "\n".join(lines)
+
+    def get_roadmap_status(self, student_id: int) -> dict:
+        """
+        Analyze the student's current position in the 5-topic curriculum.
+        Returns a dict with current topic, progress, next milestones, and hardware hints.
+        """
+        if not self.db:
+            return {"error": "No database connection"}
+
+        all_topics = self.db.get_all_topics()
+        mastery = {m["topic"]: m["score"] for m in self.db.get_all_mastery(student_id)}
+        
+        # 5 standard buckets
+        buckets = ["Mechanics", "Electromagnetism", "Thermodynamics", "Waves & Optics", "Quantum Basics"]
+        
+        roadmap = []
+        current_focus = None
+        next_step = None
+        hardware_milestone = None
+
+        for bucket in buckets:
+            bucket_topics = [t for t in all_topics if t["category"] == bucket]
+            if not bucket_topics: continue
+            
+            completed_count = 0
+            for t in bucket_topics:
+                score = mastery.get(t["name"], 0)
+                if score >= MASTERY_THRESHOLD_ADVANCE:
+                    completed_count += 1
+                elif not next_step:
+                    # Found the first uncompleted topic
+                    next_step = t
+                    current_focus = bucket
+
+            progress = (completed_count / len(bucket_topics)) * 100
+            roadmap.append({"bucket": bucket, "progress": int(progress)})
+
+        # Look for a hardware project "along the line"
+        if next_step and next_step.get("build_hint"):
+            hardware_milestone = next_step["build_hint"]
+        
+        return {
+            "roadmap": roadmap,
+            "current_focus": current_focus or "Completed",
+            "next_step": next_step["name"] if next_step else "All core topics mastered!",
+            "hardware_suggestion": hardware_milestone,
+            "overall_progress": int(sum(r["progress"] for r in roadmap) / len(roadmap)) if roadmap else 0
+        }

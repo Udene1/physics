@@ -39,7 +39,7 @@ PHYSICS_KEYWORDS = [
     "voltage", "current", "resistance", "magnetic", "wave", "optics",
     "thermodynamics", "heat", "entropy", "quantum", "photon", "electron",
     "field", "potential", "capacitor", "inductor", "frequency", "oscillation",
-    "feynman", "maxwell", "kirchhoff",
+    "feynman", "maxwell", "kirchhoff", "kinematics", "statics", "dynamics",
 ]
 
 HARDWARE_KEYWORDS = [
@@ -60,16 +60,21 @@ def classify_intent(msg: str) -> str:
     msg_lower = msg.lower()
 
     if msg_lower.startswith("/"):
-        if msg_lower.startswith(("/problems", "/practice", "/verify", "/check", "/hint", "/next", "/lesson", "/teach")):
-            return "math"
+        if msg_lower.startswith(("/problems", "/practice", "/verify", "/check", "/hint", "/next")):
+            return "math", True
+        if msg_lower.startswith(("/lesson", "/teach")):
+            # Check keywords for lesson routing
+            if any(kw in msg_lower for kw in PHYSICS_KEYWORDS):
+                return "physics", True
+            return "math", True
         if msg_lower.startswith(("/builds", "/projects", "/build ")):
-            return "hardware"
+            return "hardware", True
         if msg_lower.startswith(("/report", "/progress", "/weekly")):
-            return "progress"
+            return "progress", True
         if msg_lower.startswith(("/curriculum", "/prereq", "/study")):
-            return "physics"
+            return "physics", True
         if msg_lower.startswith(("/goals", "/greet")):
-            return "companion"
+            return "companion", True
 
     scores = {
         "math": sum(1 for kw in MATH_KEYWORDS if kw in msg_lower),
@@ -80,8 +85,8 @@ def classify_intent(msg: str) -> str:
 
     best = max(scores, key=scores.get)
     if scores[best] > 0:
-        return best
-    return "companion"
+        return best, True
+    return "companion", False
 
 
 def init_agents(db=None):
@@ -143,12 +148,13 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
         return "📋 Goals", "No pending goals — ask the Companion to set some!"
 
     # Route to agent
-    intent = classify_intent(msg)
+    intent, was_matched = classify_intent(msg)
     
-    # Check for session stickiness: If Math Tutor has an active problem,
-    # and the message doesn't look like a command for another agent,
-    # keep it with Math Tutor for answers or session commands.
+    # Check for session stickiness
     if intent == "companion" and not msg.startswith("/"):
+        last_agent = db.get_meta("last_active_agent")
+        
+        # If Math Tutor has an active problem, it takes precedence
         math_agent = agents.get("math")
         if math_agent:
             state = math_agent.get_student_state(student_id)
@@ -156,9 +162,28 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
                 # If it looks like a number/formula OR a specific session command
                 is_math_like = len(msg) < 20 and (any(c.isdigit() for c in msg) or any(c in "+-*/^()=" for c in msg))
                 is_session_cmd = msg_lower in ("hint", "next", "next problem", "give me a hint")
-                
                 if is_math_like or is_session_cmd:
                     intent = "math"
+                    last_agent = None # Math state won
+
+        # Otherwise, if we had a last active agent that isn't companion, 
+        # and this message didn't explicitly trigger companion keywords, stick to it.
+        if intent == "companion" and not was_matched and last_agent and last_agent != "companion":
+            intent = last_agent
+
+    # If intent is companion, inject roadmap context
+    context = ""
+    if intent == "companion":
+        try:
+            roadmap = agents["physics"].get_roadmap_status(student_id)
+            context = (
+                f"Current Roadmap Status:\n"
+                f"- Focus: {roadmap['current_focus']}\n"
+                f"- Next Step: {roadmap['next_step']}\n"
+                f"- Hardware Milestone: {roadmap['hardware_suggestion'] or 'None yet'}\n"
+                f"- Overall Progress: {roadmap['overall_progress']}%\n"
+            )
+        except Exception: pass
 
     agent = agents[intent]
     label = AGENT_LABELS.get(intent, "🤖 Agent")
@@ -166,7 +191,10 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
     # Update student activity/streak
     db.update_streak(student_id)
     
-    response = agent.chat(msg, student_id=student_id)
+    # Save last active agent for next turn
+    db.set_meta("last_active_agent", intent)
+    
+    response = agent.chat(msg, context=context, student_id=student_id)
 
     db.log_interaction(
         student_id=student_id,
@@ -208,7 +236,20 @@ def main():
     print(f"   ✅ All agents ready\n")
 
     print("=" * 60)
-    print(agents["companion"].greet())
+    print(agents["companion"].greet(student_id=1))
+    
+    # Show Roadmap Summary in greeting
+    try:
+        roadmap = agents["physics"].get_roadmap_status(student_id=1)
+        print(f"\n📍 **Current Focus:** {roadmap['current_focus']}")
+        print(f"🎯 **Next Milestone:** {roadmap['next_step']}")
+        if roadmap['hardware_suggestion']:
+            print(f"🔧 **Hardware Gate:** {roadmap['hardware_suggestion']}")
+        
+        prog = roadmap['overall_progress']
+        bar = "█" * (prog // 5) + "░" * (20 - (prog // 5))
+        print(f"\n🌍 **Journey Progress:** [{bar}] {prog}%")
+    except Exception: pass
     print("=" * 60)
 
     while True:

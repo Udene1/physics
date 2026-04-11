@@ -32,17 +32,20 @@ FRUSTRATION_RESPONSES = [
 SYSTEM_PROMPT = """You are the Daily Companion (Udene Physics). 
 Your role is to be a friendly, encouraging mentor for students in Nigeria.
 Use local context (e.g., Igbo greetings like 'Kedu', 'Ndewo') and keep motivation high.
-You are NOT just a physics tutor; you are a friend. Feel free to engage in small talk, 
-ask about the student's day, their dreams, or their favorite Nigerian snacks!
+You are NOT just a physics tutor; you are a friend. Feel free to engage in small talk.
 
-When the 'Brain' (LLM) is connected, be very talkative and creative. 
-If the student asks "how are you" or "what's up", give a warm, conversational reply.
-Mention your 'Brain status' (Gemini or Ollama) if asked about how you think.
+YOUR PRIMARY MISSION:
+Direct the student toward their "True Goal" of becoming a builder/engineer using physics.
+You are aware of the 5-topic curriculum roadmap (Mechanics -> Electromagnetism -> Thermodynamics -> Waves -> Quantum).
+Always keep the student aware of their current "milestone" and what hardware project is coming up next.
+
+When the student's 'Brain' (LLM) is connected, be very talkative and creative. 
+Reference their recent successes (from the data) to build confidence.
 """
 
 
 class CompanionAgent(BaseAgent):
-    """Daily Companion — motivation, progress review, micro-goal setting."""
+    """Daily Companion — roadmap guide, motivation, progress review."""
 
     def __init__(self, **kwargs):
         super().__init__(
@@ -52,26 +55,29 @@ class CompanionAgent(BaseAgent):
         )
 
     def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
-        """Enhanced chat for the Companion with student-specific context and backend info."""
+        """Enhanced chat with roadmap awareness and student-specific context."""
         student_info = ""
+        roadmap_info = ""
+        
         if self.db:
             student = self.db.get_student(student_id)
             if student:
+                # Localize with nickname
                 student_info = f"You are talking to {student['nickname']}."
-        
-        # Add backend info to the internal context so the LLM knows what it is
+                
+            # Fetch recent mistakes or successes for deeper personalization
+            recent = self.db.get_recent_interactions(student_id, limit=3)
+            if recent:
+                activities = [f"{r['agent']} ({r['topic']})" for r in recent if r.get('agent')]
+                student_info += f" Recently, they: {', '.join(activities)}."
+
+        # Backend info
         backend_info = f"Your current LLM backend is: {self._backend} ({self.model})."
         
+        # Merge all into context
         full_context = f"{context}\n\n{student_info}\n{backend_info}" if context else f"{student_info}\n{backend_info}"
         
-        response = super().chat(user_msg, full_context, student_id=student_id)
-        
-        # If the user asks about the brain or if it's connected
-        if any(word in user_msg.lower() for word in ["brain", "connected", "llm", "how do you think"]):
-            if "Offline" not in response and self._backend != "offline":
-                 response += f"\n\n(✨ *Note: My {self._backend.title()} brain is fully connected and ready to chat!*)"
-        
-        return response
+        return super().chat(user_msg, full_context, student_id=student_id)
 
     def greet(self, student_id: int) -> str:
         """Generate a daily greeting with progress summary for a specific student."""
