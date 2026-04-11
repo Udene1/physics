@@ -152,7 +152,10 @@ class PhysicsSupervisorAgent(BaseAgent):
                     math_missing.append(p_name)
 
             if math_missing:
-                guidance = f"🤔 To understand **{target_topic}**, you first need a solid grasp of **{math_missing[0]}**."
+                guidance = (
+                    f"🤔 To understand **{target_topic}**, you first need a solid grasp of **{math_missing[0]}**.\n\n"
+                    f"Would you like a quick lesson? Try typing: `/lesson {math_missing[0]}`"
+                )
             else:
                 guidance = f"❌ **Prerequisites Not Met for {target_topic}**"
 

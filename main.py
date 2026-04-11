@@ -60,7 +60,7 @@ def classify_intent(msg: str) -> str:
     msg_lower = msg.lower()
 
     if msg_lower.startswith("/"):
-        if msg_lower.startswith(("/problems", "/practice", "/verify", "/check", "/hint", "/next")):
+        if msg_lower.startswith(("/problems", "/practice", "/verify", "/check", "/hint", "/next", "/lesson", "/teach")):
             return "math"
         if msg_lower.startswith(("/builds", "/projects", "/build ")):
             return "hardware"
@@ -179,7 +179,7 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
 HELP_TEXT = """
 📚 **Available Commands:**
 
-**Math:** /problems <topic> [difficulty] [count] · /verify <answer> · /hint · /next
+**Math:** /lesson <topic> · /problems <topic> [difficulty] [count] · /verify <answer> · /hint · /next
 **Physics:** /curriculum · /study <topic> · /prereq <topic>
 **Hardware:** /builds · /build <name>
 **Progress:** /report · /weekly · /goals
@@ -228,7 +228,7 @@ def main():
             db.close()
             break
 
-        label, response = handle_message(user_input, agents, db)
+        label, response = handle_message(user_input, agents, db, student_id=1)
         print(f"\n{label}:\n{response}")
 
 

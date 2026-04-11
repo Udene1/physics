@@ -16,10 +16,11 @@ class MathTutorAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         system_prompt = (
-            "You are the Math Tutor (Udene Physics). You explain concepts clearly "
-            "and encourage students to solve problems themselves. "
-            "Use standard mathematical notation. If a student is stuck, provide a "
-            "small hint rather than the full solution. Focus on foundational STEM "
+            "You are the Math Tutor (Udene Physics). Your primary goal is to TEACH "
+            "mathematical concepts from first principles, ensuring students understand "
+            "the 'why' before the 'how'. When a student is stuck or starting a new topic, "
+            "provide a clear, conceptual explanation. Only then provide practice problems. "
+            "Use standard mathematical notation. Focus on foundational STEM "
             "math (Algebra, Geometry, Trigonometry, Calculus)."
         )
         super().__init__(name="MathTutor", system_prompt=system_prompt, **kwargs)
@@ -53,6 +54,11 @@ class MathTutorAgent(BaseAgent):
         # Handle "next problem" during a practice session
         if msg_lower in ("/next", "next", "next problem"):
             return self._next_problem(student_id)
+
+        # Handle lesson/teaching requests
+        if msg_lower.startswith("/lesson") or msg_lower.startswith("/teach"):
+            topic = msg_lower.replace("/lesson", "").replace("/teach", "").strip() or "Basic Algebra"
+            return self.teach_topic(student_id, topic)
 
         # Handle hint request
         if msg_lower in ("/hint", "hint", "give me a hint"):
@@ -111,11 +117,39 @@ class MathTutorAgent(BaseAgent):
             return f"Sorry, I couldn't generate problems for '{topic_name}'. Try 'algebra' or 'calculus'."
             
         first = problems[0]
+        # Include a very brief conceptual anchor even when just starting problems
+        intro = f"📝 Let's practice **{topic_name}**!\n\n"
+        if difficulty == 1:
+            intro += "Remember: Always look for the first principle or the core definition first.\n\n"
+            
         return (
-            f"📝 Let's practice **{topic_name}**!\n\n"
+            f"{intro}"
             f"**Problem 1:** {first['statement']}\n\n"
             "Try solving it and type `/verify <your_answer>` to check!"
         )
+
+    def teach_topic(self, student_id: int, topic_name: str) -> str:
+        """Generate a conceptual lesson for a given topic."""
+        # Use the LLM to generate a lesson
+        prompt = (
+            f"The student wants to learn about '{topic_name}'.\n"
+            "Provide a clear, engaging, and concise lesson that explains the core concepts "
+            "from first principles. Use relatable analogies where possible (e.g., Nigerian context "
+            "like market trade or construction). Do NOT give practice problems yet. "
+            "End by asking if they feel ready for a practice problem."
+        )
+        lesson = self.chat(prompt, context="Provide only the lesson content.", student_id=student_id)
+        
+        if self.db:
+            self.db.log_interaction(
+                student_id=student_id,
+                agent="MathTutor",
+                topic=topic_name,
+                user_input=f"/lesson {topic_name}",
+                agent_response=lesson,
+                result="lesson"
+            )
+        return lesson
 
     def _handle_verify(self, student_id: int, user_msg: str) -> str:
         """Verify the user's answer against the current problem."""
