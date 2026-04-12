@@ -128,10 +128,14 @@ class PhysicsSupervisorAgent(BaseAgent):
         """Enhanced chat with curriculum, mastery context, and lesson support."""
         msg_lower = user_msg.lower().strip()
 
-        # Handle lesson/teaching requests
-        if msg_lower.startswith("/lesson") or msg_lower.startswith("/teach"):
-            topic = msg_lower.replace("/lesson", "").replace("/teach", "").strip() or "Mechanics"
+        # Handle lesson/teaching/prereq requests
+        if msg_lower.startswith(("/lesson", "/teach", "/study")):
+            topic = msg_lower.replace("/lesson", "").replace("/teach", "").replace("/study", "").strip() or "Mechanics"
             return self.teach_topic(student_id, topic)
+            
+        if msg_lower.startswith("/prereq"):
+            topic = msg_lower.replace("/prereq", "").strip() or "Mechanics"
+            return self.check_prerequisites(student_id, topic)["message"]
 
         mastery_context = self._build_physics_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
@@ -263,6 +267,16 @@ class PhysicsSupervisorAgent(BaseAgent):
     def get_study_tasks(self, student_id: int, topic: str) -> str:
         """Generate study tasks for a specific topic."""
         topic_info = CURRICULUM.get(topic)
+        if not topic_info:
+            # Check DB
+            if self.db:
+                db_topic = self.db.get_topic(topic)
+                if db_topic:
+                    topic_info = {
+                        "description": db_topic.get("description", ""),
+                        "resources": ["Udene Professional Repository", "Local Distilled Knowledge"]
+                    }
+        
         if not topic_info:
             return f"Topic '{topic}' not found."
 

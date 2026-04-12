@@ -138,14 +138,8 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
     if msg_lower == "/curriculum":
         return "⚛️ PhysicsSupervisor", agents["physics"].get_curriculum_overview(student_id)
 
-    if msg_lower.startswith("/study "):
-        topic = msg_lower.replace("/study ", "").strip()
-        return "⚛️ PhysicsSupervisor", agents["physics"].get_study_tasks(student_id, topic)
-
-    if msg_lower.startswith("/prereq "):
-        topic = msg_lower.replace("/prereq ", "").strip()
-        result = agents["physics"].check_prerequisites(student_id, topic)
-        return "⚛️ PhysicsSupervisor", result["message"]
+    if msg_lower == "/curriculum":
+        return "⚛️ PhysicsSupervisor", agents["physics"].get_curriculum_overview(student_id)
 
     if msg_lower == "/goals":
         goals = db.get_pending_goals(student_id)

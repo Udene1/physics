@@ -138,7 +138,7 @@ class MathTutorAgent(BaseAgent):
             "like market trade or construction). Do NOT give practice problems yet. "
             "End by asking if they feel ready for a practice problem."
         )
-        lesson = self.chat(prompt, context="Provide only the lesson content.", student_id=student_id)
+        lesson = super().chat(prompt, context="Provide only the lesson content.", student_id=student_id)
         
         if self.db:
             self.db.log_interaction(

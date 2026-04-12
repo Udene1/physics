@@ -558,7 +558,7 @@ class ProgressDB:
         self.conn.commit()
 
     def get_topic(self, name: str) -> Optional[dict]:
-        row = self.conn.execute("SELECT * FROM topics WHERE name = ?", (name,)).fetchone()
+        row = self.conn.execute("SELECT * FROM topics WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
         if row:
             data = dict(row)
             data["prerequisites"] = json.loads(data["prerequisites"])
