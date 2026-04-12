@@ -15,6 +15,15 @@ load_dotenv()
 # Add project root to path
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Fix Windows console encoding for UTF-8 (Nigerian/Igbo characters/Banner)
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except AttributeError:
+        # Fallback for Python versions < 3.7
+        import codecs
+        sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+
 from agents.base import detect_backend, detect_model, OLLAMA_AVAILABLE
 from agents.companion import CompanionAgent
 from agents.math_tutor import MathTutorAgent

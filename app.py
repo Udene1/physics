@@ -13,6 +13,14 @@ from dotenv import load_dotenv
 # Load environment variables FIRST
 load_dotenv()
 
+import sys
+# Fix Windows console encoding
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file
 from functools import wraps
 from main import init_agents, handle_message

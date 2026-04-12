@@ -111,6 +111,7 @@ TEACHING STYLE:
 - When giving a lesson, provide a concise but deep explanation of the "why" using local Nigerian analogies.
 - Always end a lesson with a "Check for Understanding" question.
 """
+MASTERY_THRESHOLD_ADVANCE = 80.0
 
 
 class PhysicsSupervisorAgent(BaseAgent):
