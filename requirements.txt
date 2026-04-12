@@ -13,3 +13,4 @@ reportlab
 gunicorn
 python-dotenv
 requests
+Pillow

@@ -127,6 +127,7 @@ class ProgressDB:
                 category TEXT,
                 content TEXT,
                 source_llm TEXT,
+                verified INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -205,6 +206,12 @@ class ProgressDB:
         if "description" not in topic_cols:
             self.conn.execute("ALTER TABLE topics ADD COLUMN description TEXT")
         
+        # 4. Add verified column to distilled_knowledge if missing
+        cursor = self.conn.execute("PRAGMA table_info(distilled_knowledge)")
+        distills_cols = [row[1] for row in cursor.fetchall()]
+        if distills_cols and "verified" not in distills_cols:
+            self.conn.execute("ALTER TABLE distilled_knowledge ADD COLUMN verified INTEGER DEFAULT 0")
+
         self.conn.commit()
         # print("[DB] Migration check complete.")
 
@@ -582,7 +589,7 @@ class ProgressDB:
         self.conn.close()
     # --- Knowledge Distillation ---
 
-    def save_distilled_lesson(self, topic: str, category: str, content: str, source_llm: str):
+    def save_distilled_lesson(self, topic: str, category: str, content: str, source_llm: str = None):
         """Save a high-quality lesson for future offline/fast retrieval."""
         self.conn.execute('''
             INSERT OR REPLACE INTO distilled_knowledge (topic, category, content, source_llm)
@@ -590,10 +597,27 @@ class ProgressDB:
         ''', (topic, category, content, source_llm))
         self.conn.commit()
 
-    def get_distilled_lesson(self, topic: str) -> dict:
-        """Retrieve a previously distilled lesson."""
-        row = self.conn.execute('SELECT * FROM distilled_knowledge WHERE topic = ?', (topic,)).fetchone()
+    def get_distilled_lesson(self, topic: str) -> Optional[dict]:
+        """Retrieve a previously distilled lesson, prioritizing verified ones."""
+        row = self.conn.execute("""
+            SELECT * FROM distilled_knowledge WHERE LOWER(topic) = LOWER(?)
+            ORDER BY verified DESC, created_at DESC LIMIT 1
+        """, (topic,)).fetchone()
         return dict(row) if row else None
+
+    def verify_distilled_lesson(self, lesson_id: int):
+        """Mark a lesson as verified by an expert/sage."""
+        self.conn.execute("UPDATE distilled_knowledge SET verified = 1 WHERE id = ?", (lesson_id,))
+        self.conn.commit()
+
+    def get_unverified_lessons(self, category: str = None) -> list[dict]:
+        query = "SELECT * FROM distilled_knowledge WHERE verified = 0"
+        params = []
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+        rows = self.conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
 
     def log_learning_signal(self, student_id: int, topic: str, signal_type: str, value: float):
         """Log a granular learning signal for future model training."""

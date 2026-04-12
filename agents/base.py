@@ -144,21 +144,40 @@ class BaseAgent:
                 try:
                     # Quick check: can we even see this model?
                     genai.get_model(self.model)
-                except Exception:
+                except Exception as e:
                     print(f"DEBUG: {self.model} not found. Enumerating available models...")
-                    available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                    flash_models = [m for m in available if 'flash' in m.lower()]
-                    if flash_models:
-                        new_model = flash_models[0]
-                        print(f"DEBUG: Found valid model: {new_model}")
-                        self.model = new_model
-                        self._gemini_model = genai.GenerativeModel(
-                            self.model,
-                            system_instruction=self.system_prompt
-                        )
+                    try:
+                        available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                        flash_models = [m for m in available if 'flash' in m.lower()]
+                        if flash_models:
+                            new_model = flash_models[0]
+                            print(f"DEBUG: Found valid model: {new_model}")
+                            self.model = new_model
+                            self._gemini_model = genai.GenerativeModel(
+                                self.model,
+                                system_instruction=self.system_prompt
+                            )
+                    except Exception:
+                        print("WARNING: Could not enumerate Gemini models. Switching to offline.")
+                        self._backend = "offline"
             except Exception as e:
                 print(f"WARNING: Gemini Init failed: {e}")
                 self._backend = "offline"
+
+    def check_health(self) -> dict:
+        """Check the status of the current backend for Edge resilience."""
+        status = {"backend": self._backend, "model": self.model, "healthy": True}
+        try:
+            if self._backend == "gemini":
+                # Dummy call or just check if model object exists
+                if not self._gemini_model: status["healthy"] = False
+            elif self._backend == "ollama":
+                self._ollama_client.list()
+            elif self._backend == "offline":
+                status["healthy"] = True # Offline is always "healthy" in its own way
+        except Exception:
+            status["healthy"] = False
+        return status
 
         self._groq_client = None
         groq_key = os.environ.get("GROQ_API_KEY")
@@ -232,7 +251,15 @@ class BaseAgent:
                 current = gemini_history.pop()
                 chat = self._gemini_model.start_chat(history=gemini_history)
                 return chat.send_message(current["parts"][0]).text
-            return self._gemini_model.generate_content(messages[-1]["content"]).text
+            
+            # Simple content generation
+            content = []
+            for m in messages:
+                if m.get("image"):
+                    content.append(m["image"])
+                content.append(m["content"])
+                
+            return self._gemini_model.generate_content(content).text
         except Exception as e:
             err_msg = str(e)
             
@@ -315,8 +342,13 @@ class BaseAgent:
         return (f"🔌 [{self.name}] Offline.\nBuild more, learn more! 💪\n"
                 "Key math/physics logic is still active via SymPy.")
 
-    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
         messages = self._build_messages(user_msg, context, student_id)
+        
+        if image:
+            # Store image in the last message if provided
+            messages[-1]["image"] = image
+
         response = self._call_llm(messages)
 
         history = self._get_history(student_id)
@@ -329,7 +361,7 @@ class BaseAgent:
             try:
                 self.db.log_interaction(
                     student_id=student_id,
-                    agent=self.name, topic="chat",
+                    agent=self.name, topic="vision_chat" if image else "chat",
                     user_input=user_msg[:500], agent_response=response[:500], result="ok"
                 )
             except Exception: pass

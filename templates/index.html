@@ -23,8 +23,11 @@
             </div>
             
             <nav class="sidebar-nav">
-                <button class="nav-item active" onclick="showSection('chat')">
+                <button class="nav-item" onclick="showSection('chat')">
                     <span class="icon">💬</span> <span>Learning Chat</span>
+                </button>
+                <button class="nav-item" onclick="window.location.href='/sandbox'">
+                    <span class="icon">🕹️</span> <span>Logic Sandbox</span>
                 </button>
                 <button class="nav-item" onclick="loadReport()">
                     <span class="icon">📊</span> <span>Performance</span>
@@ -78,9 +81,15 @@
                         <button onclick="setInput('/report')">My Progress</button>
                     </div>
                     <form id="chat-form" class="chat-form">
+                        <input type="file" id="image-input" accept="image/*" style="display: none;">
+                        <button type="button" id="photo-btn" onclick="document.getElementById('image-input').click()" style="background: rgba(255,255,255,0.05); border: none; font-size: 1.2rem; cursor: pointer; padding: 0 10px;">📷</button>
                         <input type="text" id="user-input" placeholder="Enter command or message..." autocomplete="off">
                         <button type="submit" id="send-btn">Send</button>
                     </form>
+                    <div id="image-preview-container" style="display: none; padding: 5px 10px; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <span id="image-name" style="font-size: 0.8rem; color: var(--accent-blue);"></span>
+                        <button onclick="clearImage()" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem;">[✕]</button>
+                    </div>
                 </div>
             </section>
 

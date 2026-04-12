@@ -14,15 +14,52 @@ const chatMessages = document.getElementById('chat-messages');
 const sendBtn = document.getElementById('send-btn');
 const backendInfo = document.getElementById('backend-info');
 
+const imageInput = document.getElementById('image-input');
+const imagePreviewContainer = document.getElementById('image-preview-container');
+const imageNameSpan = document.getElementById('image-name');
+let selectedImageBase64 = null;
+
+imageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            selectedImageBase64 = event.target.result;
+            imageNameSpan.textContent = `📎 ${file.name}`;
+            imagePreviewContainer.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+function clearImage() {
+    selectedImageBase64 = null;
+    imageInput.value = '';
+    imagePreviewContainer.style.display = 'none';
+}
+
 // Handle chat submissions
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const message = userInput.value.trim();
-    if (!message) return;
+    if (!message && !selectedImageBase64) return;
 
     // Add user message to UI
-    appendMessage('user', '🧑 STUDENt', message);
+    let displayMsg = message;
+    if (selectedImageBase64) {
+        displayMsg += message ? '\n\n' : '';
+        displayMsg += `*(Sent an image for analysis)*`;
+    }
+    
+    appendMessage('user', '🧑 STUDENt', displayMsg);
+    
+    const payload = { message: message };
+    if (selectedImageBase64) {
+        payload.image = selectedImageBase64;
+    }
+
     userInput.value = '';
+    clearImage();
     
     // Show typing indicator
     const typingId = appendTypingIndicator();
@@ -31,7 +68,7 @@ chatForm.addEventListener('submit', async (e) => {
         const response = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message })
+            body: JSON.stringify(payload)
         });
         
         const data = await response.json();

@@ -39,7 +39,7 @@ class MathTutorAgent(BaseAgent):
         if self.db:
             self.db.set_agent_state(student_id, self.name, state)
 
-    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
         """Enhanced chat that detects verification requests and problem commands."""
         msg_lower = user_msg.lower().strip()
 
@@ -50,6 +50,9 @@ class MathTutorAgent(BaseAgent):
         # Handle answer verification
         if msg_lower.startswith("/verify") or msg_lower.startswith("/check"):
             return self._handle_verify(student_id, user_msg)
+            
+        if msg_lower.startswith("/analyze") and image:
+            return self.analyze_math_photo(image, student_id)
 
         # Handle "next problem" during a practice session
         if msg_lower in ("/next", "next", "next problem"):
@@ -75,7 +78,17 @@ class MathTutorAgent(BaseAgent):
         mastery_context = self._build_mastery_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
 
-        return super().chat(user_msg, full_context, student_id=student_id)
+        return super().chat(user_msg, full_context, student_id=student_id, image=image)
+
+    def analyze_math_photo(self, image_data, student_id: int = 1) -> str:
+        """Analyze a photo of handwritten math for errors or steps."""
+        prompt = (
+            "Analyze this photo of handwritten mathematical work. Extract the problem "
+            "being solved and check the steps for accuracy. If there is a mistake, "
+            "explain why it happened using a first-principles approach. Do not just give "
+            "the answer; guide the student to correct their own thinking."
+        )
+        return super().chat(prompt, context="Math vision analysis mode.", student_id=student_id, image=image_data)
 
     def _build_mastery_context(self, student_id: int) -> str:
         """Build a context string from the user's math mastery levels."""

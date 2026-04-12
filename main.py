@@ -125,10 +125,10 @@ AGENT_LABELS = {
 }
 
 
-def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, str]:
+def handle_message(msg: str, agents: dict, db, student_id: int = 1, image=None) -> tuple[str, str]:
     """
     Process a user message and return (agent_label, response).
-    Used by both CLI and Flask web app.
+    Supports multi-student state and optional multimodal 'image' data.
     """
     msg_lower = msg.lower().strip()
 
@@ -197,7 +197,7 @@ def handle_message(msg: str, agents: dict, db, student_id: int) -> tuple[str, st
     # Save last active agent for next turn
     db.set_meta("last_active_agent", intent)
     
-    response = agent.chat(msg, context=context, student_id=student_id)
+    response = agent.chat(msg, context=context, student_id=student_id, image=image)
 
     db.log_interaction(
         student_id=student_id,

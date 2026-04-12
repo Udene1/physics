@@ -75,7 +75,7 @@ class HardwareBridgeAgent(BaseAgent):
             **kwargs
         )
 
-    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
         msg_lower = user_msg.lower().strip()
         if msg_lower in ("/builds", "/projects", "show builds"):
             return self.list_available_projects(student_id)
@@ -83,9 +83,22 @@ class HardwareBridgeAgent(BaseAgent):
             key = msg_lower.replace("/build ", "").strip().replace(" ", "_")
             return self.get_project_details(student_id, key)
         
+        if msg_lower.startswith("/analyze") and image:
+            return self.analyze_circuit(image, student_id)
+        
         projects_ctx = self._build_projects_context(student_id)
         full_ctx = f"{context}\n\n{projects_ctx}" if context else projects_ctx
-        return super().chat(user_msg, full_ctx, student_id=student_id)
+        return super().chat(user_msg, full_ctx, student_id=student_id, image=image)
+
+    def analyze_circuit(self, image_data, student_id: int = 1) -> str:
+        """Analyze an image of a circuit for errors or verification."""
+        prompt = (
+            "Analyze this hardware circuit image. Identify the components "
+            "(e.g., Arduino, Breadboard, LED, Resistor). Look for common errors "
+            "like missing ground wires, floating pins, or incorrect resistor placement. "
+            "Provide helpful, encouraging advice in a Nigerian context."
+        )
+        return super().chat(prompt, context="Vision analysis mode.", student_id=student_id, image=image_data)
 
     def list_available_projects(self, student_id: int) -> str:
         lines = ["🔧 **Hardware Build Suggestions**\n"]

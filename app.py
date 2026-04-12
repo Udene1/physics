@@ -8,6 +8,9 @@ Deployable to pxxl.app.
 import os
 import json
 from datetime import datetime
+from PIL import Image
+import io
+import base64
 from dotenv import load_dotenv
 
 # Load environment variables FIRST
@@ -120,15 +123,28 @@ def chat():
     data = request.json
     message = data.get('message', '').strip()
     student_id = session.get('student_id')
+    image_data = data.get('image') # Base64 string if present
     
-    if not message:
-        return jsonify({"error": "No message provided"}), 400
+    if not message and not image_data:
+        return jsonify({"error": "No message or image provided"}), 400
     
+    # Process image if present
+    img_obj = None
+    if image_data:
+        try:
+            # Strip header if present (data:image/png;base64,...)
+            if "," in image_data:
+                image_data = image_data.split(",")[1]
+            img_bytes = base64.b64decode(image_data)
+            img_obj = Image.open(io.BytesIO(img_bytes))
+        except Exception as e:
+            return jsonify({"error": f"Invalid image data: {e}"}), 400
+
     try:
         # Check for new badges
         new_badges = agents["progress"].auto_check_badges(student_id)
         
-        label, response = handle_message(message, agents, db, student_id)
+        label, response = handle_message(message, agents, db, student_id, image=img_obj)
         stats = db.get_stats(student_id) # Refresh stats after activity
         
         return jsonify({
@@ -141,6 +157,27 @@ def chat():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/sandbox')
+@login_required
+def sandbox():
+    """Render the simulation sandbox."""
+    return render_template('simulation.html')
+
+@app.route('/verify', methods=['POST'])
+@login_required
+def verify_lesson():
+    """Expert route to verify a distilled lesson."""
+    # Simple check: only student with ID 1 (Admin/Teacher) can verify for now
+    if session.get('student_id') != 1:
+        return jsonify({"error": "Unauthorized. Only a Sage can verify lessons."}), 403
+        
+    lesson_id = request.json.get('lesson_id')
+    if not lesson_id:
+        return jsonify({"error": "Missing lesson_id"}), 400
+    
+    db.verify_distilled_lesson(lesson_id)
+    return jsonify({"success": True})
 
 @app.route('/report')
 @login_required
