@@ -326,6 +326,33 @@ class ProgressDB:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def get_shared_context(self, student_id: int, limit: int = 5) -> str:
+        """
+        Fetch a summary of recent interactions across all agents for context.
+        Used for inter-agent 'memory'.
+        """
+        rows = self.conn.execute(
+            """SELECT agent, topic, user_input, agent_response, timestamp 
+               FROM interactions 
+               WHERE student_id = ? 
+               ORDER BY id DESC LIMIT ?""",
+            (student_id, limit)
+        ).fetchall()
+        
+        if not rows:
+            return ""
+
+        context_lines = ["\n--- SHARED SESSION MEMORY (RECAP) ---"]
+        # Reverse to show chronological order for the last few
+        for row in reversed(rows):
+            context_lines.append(
+                f"[{row['timestamp']}] Agent {row['agent']} assisted with {row['topic']}."
+            )
+            context_lines.append(f"Student asked: {row['user_input']}")
+            context_lines.append(f"Agent responded: {row['agent_response'][:200]}...")
+            context_lines.append("")
+        return "\n".join(context_lines)
+
     # ── Projects ────────────────────────────────────────────────────
 
     def add_project(self, student_id: int, name: str, description: str, related_topics: list[str],

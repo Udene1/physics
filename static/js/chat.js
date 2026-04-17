@@ -142,6 +142,11 @@ function appendMessage(role, label, content) {
     msgDiv.appendChild(contentDiv);
     chatMessages.appendChild(msgDiv);
     
+    // Trigger MathJax rendering if available
+    if (role === 'assistant' && window.MathJax) {
+        MathJax.typesetPromise([contentDiv]).catch((err) => console.log('MathJax error:', err));
+    }
+    
     // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -202,6 +207,8 @@ async function loadReport() {
         const resp = await fetch('/report');
         const data = await resp.json();
         container.innerHTML = marked.parse(data.report);
+        // Trigger MathJax rendering
+        if (window.MathJax) MathJax.typesetPromise([container]);
     } catch (err) {
         container.innerHTML = `<p class="error">Failed to load report: ${err.message}</p>`;
     }
@@ -216,6 +223,8 @@ async function loadCurriculum() {
         const resp = await fetch('/curriculum');
         const data = await resp.json();
         container.innerHTML = marked.parse(data.curriculum);
+        // Trigger MathJax rendering
+        if (window.MathJax) MathJax.typesetPromise([container]);
     } catch (err) {
         container.innerHTML = `<p class="error">Failed to load curriculum: ${err.message}</p>`;
     }

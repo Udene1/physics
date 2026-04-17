@@ -196,8 +196,17 @@ class BaseAgent:
             except Exception: self._backend = "offline"
 
     def _get_history(self, student_id: int) -> list[dict]:
-        if student_id not in self.histories:
+        if student_id not in self.histories or not self.histories[student_id]:
             self.histories[student_id] = []
+            # NEW: Load history from DB to prevent state loss on restart
+            if self.db:
+                recent = self.db.get_recent_interactions(student_id, agent=self.name, limit=self.max_history)
+                # interactions are in DESC order, reverse for chronological history
+                for inter in reversed(recent):
+                    if inter["user_input"]:
+                        self.histories[student_id].append({"role": "user", "content": inter["user_input"]})
+                    if inter["agent_response"]:
+                        self.histories[student_id].append({"role": "assistant", "content": inter["agent_response"]})
         return self.histories[student_id]
 
     def _build_messages(self, user_msg: str, context: str = "", student_id: int = None) -> list[dict]:
@@ -205,13 +214,43 @@ class BaseAgent:
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
         
+        # NEW: Inject Shared Context (what OTHER agents have done recently)
+        if self.db and student_id:
+            shared_ctx = self.db.get_shared_context(student_id, limit=5)
+            if shared_ctx:
+                messages.append({"role": "system", "content": shared_ctx})
+
+        # NEW IMPROVEMENT: Universal Knowledge Retrieval
+        # Proactively check if the user is asking about something we previously distilled
+        if self.db:
+            distilled = self._lookup_relevant_knowledge(user_msg)
+            if distilled:
+                messages.append({"role": "system", "content": f"--- RELEVANT LOCAL KNOWLEDGE ---\n{distilled}\n--- END LOCAL KNOWLEDGE ---"})
+        
         if context:
             messages.append({"role": "system", "content": f"Context: {context}"})
         
         history = self._get_history(student_id)
+        # Avoid duplication if history was just loaded
         messages.extend(history[-self.max_history:])
         messages.append({"role": "user", "content": user_msg})
         return messages
+
+    def _lookup_relevant_knowledge(self, user_msg: str) -> str:
+        """Scan user message for keywords and return relevant distilled content from the DB."""
+        if not self.db: return ""
+        try:
+            # For a lightweight offline system, we scan the topic names.
+            # In production, this would be a vector search / embedding lookup.
+            msg_lower = user_msg.lower()
+            rows = self.db.conn.execute("SELECT topic, content FROM distilled_knowledge").fetchall()
+            matches = []
+            for row in rows:
+                if row['topic'].lower() in msg_lower:
+                    matches.append(f"[{row['topic']}]: {row['content'][:500]}...")
+            return "\n\n".join(matches)
+        except Exception:
+            return ""
 
     def _call_llm(self, messages: list[dict]) -> str:
         start_time = time.time()

@@ -81,7 +81,7 @@ class HardwareBridgeAgent(BaseAgent):
             return self.list_available_projects(student_id)
         if msg_lower.startswith("/build "):
             key = msg_lower.replace("/build ", "").strip().replace(" ", "_")
-            return self.get_project_details(student_id, key)
+            return self.teach_build(student_id, key)
         
         if msg_lower.startswith("/analyze") and image:
             return self.analyze_circuit(image, student_id)
@@ -114,7 +114,7 @@ class HardwareBridgeAgent(BaseAgent):
                         ready = False
                         break
             status = "✅ Ready" if ready else "🔒 Locked"
-            lines.append(f"  {status} **{p['name']}**\n        🌍 {p['impact']}")
+            lines.append(f"  {status} **[ /build {key} ]** {p['name']}\n        🌍 {p['impact']}")
 
         # 2. Dynamic Topic-Based Suggestions
         if self.db:
@@ -133,14 +133,43 @@ class HardwareBridgeAgent(BaseAgent):
 
         return "\n".join(lines)
 
-    def get_project_details(self, student_id: int, project_key: str) -> str:
+    def teach_build(self, student_id: int, project_key: str) -> str:
+        """Provide detailed build instructions, using distillation if available."""
         project = HARDWARE_PROJECTS.get(project_key)
+        topic_name = project['name'] if project else project_key.replace("_", " ").title()
+        
+        # 1. Check distilled local knowledge first
+        if self.db:
+            distilled = self.db.get_distilled_lesson(topic_name)
+            if distilled:
+                return f"{distilled['content']}\n\n(✨ *Note: This guide was served from my Local Knowledge Base.*)"
+
         if not project: return "Project not found."
         
-        lines = [f"# 🔧 {project['name']}\n", f"**Cost:** {project['total_cost']}\n", "## 🌍 Impact\n" + project['impact']]
-        lines.append("\n## 📋 Components")
-        for c in project["components"]: lines.append(f"  • {c}")
-        return "\n".join(lines)
+        # 2. Generate a fresh build guide using LLM for more depth
+        prompt = (
+            f"Provide a detailed build guide for the hardware project: '{project['name']}'.\n"
+            f"Description: {project['description']}\n"
+            f"Impact: {project['impact']}\n"
+            "Include a step-by-step assembly guide, wiring tips, and a 'Troubleshooting' section "
+            "relevant for a student in Lagos/Benin City using locally sourced parts."
+        )
+        guide = super().chat(prompt, context="Provide a practical hardware build guide.", student_id=student_id)
+        
+        # 3. Save to local DB for distillation
+        if self.db and "Offline" not in guide:
+            self.db.save_distilled_lesson(topic_name, "hardware", guide, self.model)
+
+        if self.db:
+            self.db.log_interaction(
+                student_id=student_id,
+                agent="HardwareBridge",
+                topic=topic_name,
+                user_input=f"/build {project_key}",
+                agent_response=guide,
+                result="lesson"
+            )
+        return guide
 
     def _build_projects_context(self, student_id: int) -> str:
         if not self.db: return ""

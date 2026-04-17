@@ -142,8 +142,18 @@ class MathTutorAgent(BaseAgent):
         )
 
     def teach_topic(self, student_id: int, topic_name: str) -> str:
-        """Generate a conceptual lesson for a given topic."""
-        # Use the LLM to generate a lesson
+        """
+        Provides interactive lesson notes on a topic, first checking for distilled local knowledge.
+        """
+        topic_name = topic_name.title().strip()
+        
+        # 1. Check distilled local knowledge first
+        if self.db:
+            distilled = self.db.get_distilled_lesson(topic_name)
+            if distilled:
+                return f"{distilled['content']}\n\n(✨ *Note: This lesson was served from my Local Knowledge Base.*)"
+
+        # 2. Generate new lesson via LLM
         prompt = (
             f"The student wants to learn about '{topic_name}'.\n"
             "Provide a clear, engaging, and concise lesson that explains the core concepts "
@@ -153,6 +163,10 @@ class MathTutorAgent(BaseAgent):
         )
         lesson = super().chat(prompt, context="Provide only the lesson content.", student_id=student_id)
         
+        # 3. Save to local DB for distillation
+        if self.db and "Offline" not in lesson:
+            self.db.save_distilled_lesson(topic_name, "math", lesson, self.model)
+
         if self.db:
             self.db.log_interaction(
                 student_id=student_id,
