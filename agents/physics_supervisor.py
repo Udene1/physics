@@ -124,7 +124,7 @@ class PhysicsSupervisorAgent(BaseAgent):
             **kwargs
         )
 
-    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
         """Enhanced chat with curriculum, mastery context, and lesson support."""
         msg_lower = user_msg.lower().strip()
 
@@ -139,7 +139,7 @@ class PhysicsSupervisorAgent(BaseAgent):
 
         mastery_context = self._build_physics_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
-        return super().chat(user_msg, full_context, student_id=student_id)
+        return super().chat(user_msg, full_context, student_id=student_id, image=image)
 
     def teach_topic(self, student_id: int, topic_name: str) -> str:
         """

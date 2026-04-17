@@ -54,7 +54,7 @@ class CompanionAgent(BaseAgent):
             **kwargs
         )
 
-    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
         """Enhanced chat with roadmap awareness and student-specific context."""
         student_info = ""
         roadmap_info = ""
@@ -77,7 +77,7 @@ class CompanionAgent(BaseAgent):
         # Merge all into context
         full_context = f"{context}\n\n{student_info}\n{backend_info}" if context else f"{student_info}\n{backend_info}"
         
-        return super().chat(user_msg, full_context, student_id=student_id)
+        return super().chat(user_msg, full_context, student_id=student_id, image=image)
 
     def greet(self, student_id: int) -> str:
         """Generate a daily greeting with progress summary for a specific student."""

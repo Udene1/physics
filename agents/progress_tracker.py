@@ -32,7 +32,7 @@ class ProgressTrackerAgent(BaseAgent):
             **kwargs
         )
 
-    def chat(self, user_msg: str, context: str = "", student_id: int = 1) -> str:
+    def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
         msg_lower = user_msg.lower().strip()
         if msg_lower in ("/report", "/progress", "show progress", "report"):
             return self.generate_report(student_id)
@@ -41,7 +41,7 @@ class ProgressTrackerAgent(BaseAgent):
             
         report_ctx = self._build_report_context(student_id)
         full_ctx = f"{context}\n\n{report_ctx}" if context else report_ctx
-        return super().chat(user_msg, full_ctx, student_id=student_id)
+        return super().chat(user_msg, full_ctx, student_id=student_id, image=image)
 
     def generate_report(self, student_id: int) -> str:
         """Generate a formatted progress report for a student."""
