@@ -124,6 +124,18 @@ class PhysicsSupervisorAgent(BaseAgent):
             **kwargs
         )
 
+    def get_student_state(self, student_id: int) -> dict:
+        if self.db:
+            state = self.db.get_agent_state(student_id, self.name)
+            if not state:
+                state = {"active_topic": None, "last_interaction": None}
+            return state
+        return {"active_topic": None, "last_interaction": None}
+
+    def _save_student_state(self, student_id: int, state: dict):
+        if self.db:
+            self.db.set_agent_state(student_id, self.name, state)
+
     def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
         """Enhanced chat with curriculum, mastery context, and lesson support."""
         msg_lower = user_msg.lower().strip()
@@ -137,9 +149,51 @@ class PhysicsSupervisorAgent(BaseAgent):
             topic = msg_lower.replace("/prereq", "").strip() or "Mechanics"
             return self.check_prerequisites(student_id, topic)["message"]
 
+        # IMPROVEMENT: Check if responding to an assessment
+        state = self.get_student_state(student_id)
+        if state.get("active_topic") and not user_msg.startswith("/"):
+            return self.evaluate_physics_response(student_id, user_msg)
+
         mastery_context = self._build_physics_context(student_id)
         full_context = f"{context}\n\n{mastery_context}" if context else mastery_context
         return super().chat(user_msg, full_context, student_id=student_id, image=image)
+
+    def evaluate_physics_response(self, student_id: int, user_msg: str) -> str:
+        """Evaluate a student's response to a 'Check for Understanding' question."""
+        state = self.get_student_state(student_id)
+        topic = state["active_topic"]
+        
+        prompt = (
+            f"The student was learning about '{topic}' and just responded with: '{user_msg}'.\n"
+            "Evaluate if their response shows a solid conceptual understanding. "
+            "If yes, award 10% progress. If no, guide them back to the core concept. "
+            "Output format: [CORRECT/INCORRECT] Followed by your feedback."
+        )
+        
+        response = super().chat(prompt, context=f"Topic Assessment: {topic}", student_id=student_id)
+        
+        if self.db:
+            is_correct = "[CORRECT]" in response.upper()
+            # If correct, update mastery. We give a small bump for lesson participation.
+            if is_correct:
+                curr_mastery = self.db.get_mastery(student_id, topic)
+                new_score = min(100.0, (curr_mastery["score"] + 10.0) if curr_mastery else 10.0)
+                self.db.set_mastery_score(student_id, topic, "physics", new_score)
+            
+            self.db.log_interaction(
+                student_id=student_id,
+                agent="PhysicsSupervisor",
+                topic=topic,
+                user_input=user_msg,
+                agent_response=response,
+                result="correct" if is_correct else "incorrect"
+            )
+        
+        # Clear active topic focus after assessment loop
+        state["active_topic"] = None
+        self._save_student_state(student_id, state)
+        
+        return response.replace("[CORRECT]", "✅").replace("[INCORRECT]", "🤔")
 
     def teach_topic(self, student_id: int, topic_name: str) -> str:
         """
@@ -147,6 +201,11 @@ class PhysicsSupervisorAgent(BaseAgent):
         """
         topic_name = topic_name.title().strip()
         
+        # Set focus for assessment (apply to both distilled and generated)
+        state = self.get_student_state(student_id)
+        state["active_topic"] = topic_name
+        self._save_student_state(student_id, state)
+
         # 1. Check distilled local knowledge first
         if self.db:
             distilled = self.db.get_distilled_lesson(topic_name)

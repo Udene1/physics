@@ -193,9 +193,30 @@ function showSection(sectionId) {
     });
 }
 
+async function loadHistoryOnStartup() {
+    try {
+        const resp = await fetch('/history');
+        const data = await resp.json();
+        if (data.history && data.history.length > 0) {
+            // Clear the default greeting if we have real history
+            chatMessages.innerHTML = '';
+            data.history.forEach(msg => {
+                appendMessage(msg.role, msg.label, msg.content);
+            });
+        }
+    } catch (err) {
+        console.error('Failed to load history:', err);
+    }
+}
+
+// Call on startup
+document.addEventListener('DOMContentLoaded', () => {
+    loadHistoryOnStartup();
+});
+
 function clearChat() {
     chatMessages.innerHTML = '';
-    appendMessage('assistant', '🌟 UDENE COMPANION', 'History cleared. What should we learn next?');
+    appendMessage('assistant', '🌟 UDENE COMPANION', 'Chat cleared from display. (History is still saved in your profile).');
 }
 
 async function loadReport() {

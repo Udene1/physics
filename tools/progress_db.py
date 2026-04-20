@@ -112,6 +112,8 @@ class ProgressDB:
                 value TEXT NOT NULL
             );
 
+            INSERT OR IGNORE INTO session_meta (key, value) VALUES ('schema_version', '1.1');
+
             CREATE TABLE IF NOT EXISTS agent_states (
                 student_id INTEGER NOT NULL,
                 agent_name TEXT NOT NULL,
@@ -239,7 +241,7 @@ class ProgressDB:
 
     def verify_student(self, nickname: str, pin: str = None) -> Optional[dict]:
         row = self.conn.execute(
-            "SELECT * FROM students WHERE nickname = ?", (nickname,)
+            "SELECT * FROM students WHERE LOWER(nickname) = LOWER(?)", (nickname.strip(),)
         ).fetchone()
         if row:
             if not row["pin"] or row["pin"] == pin:

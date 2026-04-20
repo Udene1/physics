@@ -235,6 +235,31 @@ def export_report():
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
 
+@app.route('/history', methods=['GET'])
+@login_required
+def get_chat_history():
+    """Fetch and return the recent chat history for the logged-in student."""
+    student_id = session.get('student_id')
+    history = db.get_recent_interactions(student_id, limit=30)
+    # interactions are stored with user_input and agent_response
+    # we return them in chronological order
+    formatted = []
+    for inter in reversed(history):
+        if inter['user_input']:
+            formatted.append({"role": "user", "content": inter['user_input'], "label": "🧑 STUDENT"})
+        if inter['agent_response']:
+            # Try to get the agent's full label
+            agent_name = inter['agent']
+            label = "🤖 Agent"
+            for k, v in agents.items():
+                if v.name == agent_name:
+                    from main import AGENT_LABELS
+                    label = AGENT_LABELS.get(k, label).upper()
+                    break
+            formatted.append({"role": "assistant", "content": inter['agent_response'], "label": label})
+    
+    return jsonify({"history": formatted})
+
 if __name__ == '__main__':
     # Use environment variables for port to support cloud hosting
     port = int(os.environ.get("PORT", 5000))

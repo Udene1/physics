@@ -153,26 +153,33 @@ def handle_message(msg: str, agents: dict, db, student_id: int = 1, image=None) 
     # Route to agent
     intent, was_matched = classify_intent(msg)
     
-    # Check for session stickiness
-    if intent == "companion" and not msg.startswith("/"):
-        last_agent = db.get_meta("last_active_agent")
+    # NEW IMPROVEMENT: Session Stickiness & Focus
+    # If the user responds with a short message or number, we should likely stay with the current agent.
+    last_agent = db.get_meta("last_active_agent")
+    
+    if last_agent and last_agent != "companion":
+        # Specific overrides for stickiness
+        is_short = len(msg_lower) < 30
+        is_numeric = any(c.isdigit() for c in msg_lower)
+        is_session_cmd = msg_lower in ("hint", "next", "next problem", "give me a hint", "yes", "no", "ready")
         
-        # If Math Tutor has an active problem, it takes precedence
+        # If we were with Physics and it's a short/numeric response, don't let Math steal it
+        if last_agent == "physics" and intent == "math" and is_short:
+            intent = "physics"
+            
+        # If no strong intent was matched and we have a last agent, stick to it
+        if not was_matched and last_agent:
+            intent = last_agent
+
+    # Hard override for Math Tutor ONLY if it has an active problem set AND it's a math-like input
+    if intent != "math":
         math_agent = agents.get("math")
         if math_agent:
             state = math_agent.get_student_state(student_id)
             if state.get("problems"):
-                # If it looks like a number/formula OR a specific session command
-                is_math_like = len(msg) < 20 and (any(c.isdigit() for c in msg) or any(c in "+-*/^()=" for c in msg))
-                is_session_cmd = msg_lower in ("hint", "next", "next problem", "give me a hint")
-                if is_math_like or is_session_cmd:
+                is_math_input = any(c in "+-*/^()=" for c in msg_lower) or (len(msg) < 10 and any(c.isdigit() for c in msg))
+                if is_math_input:
                     intent = "math"
-                    last_agent = None # Math state won
-
-        # Otherwise, if we had a last active agent that isn't companion, 
-        # and this message didn't explicitly trigger companion keywords, stick to it.
-        if intent == "companion" and not was_matched and last_agent and last_agent != "companion":
-            intent = last_agent
 
     # If intent is companion, inject roadmap context
     context = ""
