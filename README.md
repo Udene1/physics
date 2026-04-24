@@ -145,6 +145,13 @@ The system automatically detects the best available backend:
 2.  **Ollama (Local)**: Uses local running models. Best for offline use.
 3.  **Offline**: No AI chat, but math tools and progress tracking still work!
 
+## 🗺️ Roadmap
+
+- **[v2.1] Vision-to-Simulation**: (In Progress) Analyze hand-drawn circuit photos and instantly sync them to the Logic Lab simulation.
+- **[v2.2] The "Sage Review" Portal**: A teacher-expert interface to verify and certify auto-distilled knowledge for the global library.
+- **[v2.3] Engineering Career Path**: Personalized certification tracks (e.g., "Solar Power Expert") with earned professional titles.
+- **[v2.4] Hardware Marketplace**: Integrated sourcing guide for Nigerian markets (Jumia, Alaba, Computer Village) to help students buy the exact components they simulate.
+
 ## 🌍 Vision
 
 Every formula learned, every circuit built, every concept mastered — is a step toward building devices that improve lives. From soil moisture sensors for farmers to temperature loggers for clinics, this system connects learning to real-world impact.

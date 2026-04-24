@@ -290,4 +290,20 @@ function update() {
     requestAnimationFrame(update);
 }
 
+// Check for pending circuit from Vision Analysis
+function checkPendingCircuit() {
+    const pending = localStorage.getItem('udene_pending_circuit');
+    if (pending) {
+        try {
+            const data = JSON.parse(pending);
+            if (data.components) {
+                elements = data.components.map(c => new Component(c.type, c.x, c.y));
+                log("[VISION] Successfully imported circuit from image analysis.");
+            }
+            localStorage.removeItem('udene_pending_circuit');
+        } catch (e) { console.error(e); }
+    }
+}
+
 update();
+checkPendingCircuit();

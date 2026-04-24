@@ -131,11 +131,36 @@ function appendMessage(role, label, content) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
     
+    // Vision-to-Simulation Detection
+    let cleanContent = content;
+    if (role === 'assistant' && content.includes('$$CIRCUIT_JSON:')) {
+        const match = content.match(/\$\$CIRCUIT_JSON: (.*) \$\$/);
+        if (match) {
+            const jsonText = match[1];
+            try {
+                const circuit = JSON.parse(jsonText);
+                localStorage.setItem('udene_pending_circuit', JSON.stringify(circuit));
+                // Remove the raw JSON from displayed text
+                cleanContent = content.replace(/\$\$CIRCUIT_JSON: .* \$\$/, '').trim();
+            } catch (e) { console.error("JSON Error", e); }
+        }
+    }
+
     // For assistant messages, render markdown if 'marked' is available
     if (role === 'assistant' && window.marked) {
-        contentDiv.innerHTML = marked.parse(content);
+        contentDiv.innerHTML = marked.parse(cleanContent);
+        
+        // If a circuit was found, add a Sync button
+        if (content.includes('$$CIRCUIT_JSON:')) {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-primary';
+            btn.style.marginTop = '1rem';
+            btn.innerHTML = '🚀 Sync to Logic Lab';
+            btn.onclick = () => window.location.href = '/sandbox';
+            contentDiv.appendChild(btn);
+        }
     } else {
-        contentDiv.textContent = content;
+        contentDiv.textContent = cleanContent;
     }
     
     msgDiv.appendChild(labelDiv);
