@@ -240,7 +240,8 @@ def export_report():
 def get_chat_history():
     """Fetch and return the recent chat history for the logged-in student."""
     student_id = session.get('student_id')
-    history = db.get_recent_interactions(student_id, limit=30)
+    topic = request.args.get('topic')
+    history = db.get_recent_interactions(student_id, limit=30, topic=topic)
     # interactions are stored with user_input and agent_response
     # we return them in chronological order
     formatted = []
@@ -259,6 +260,30 @@ def get_chat_history():
             formatted.append({"role": "assistant", "content": inter['agent_response'], "label": label})
     
     return jsonify({"history": formatted})
+
+@app.route('/sessions', methods=['GET'])
+@login_required
+def get_sessions():
+    """Returns a list of unique topics/sessions for the student."""
+    student_id = session.get('student_id')
+    interactions = db.get_recent_interactions(student_id, limit=100)
+    
+    # Group unique topics and agents
+    sessions = []
+    seen = set()
+    for inter in interactions:
+        topic = inter.get('topic') or 'General'
+        agent = inter.get('agent') or 'Assistant'
+        # Composite key to avoid duplicates
+        key = f"{agent}:{topic}"
+        if key not in seen:
+            sessions.append({
+                "topic": topic,
+                "agent": agent,
+                "timestamp": inter.get('timestamp')
+            })
+            seen.add(key)
+    return jsonify({"sessions": sessions})
 
 if __name__ == '__main__':
     # Use environment variables for port to support cloud hosting

@@ -308,11 +308,22 @@ class ProgressDB:
         )
         self.conn.commit()
 
-    def get_recent_interactions(self, student_id: int, limit: int = 20, agent: str = None) -> list[dict]:
+    def get_recent_interactions(self, student_id: int, limit: int = 20, agent: str = None, topic: str = None) -> list[dict]:
         if agent:
+            if topic:
+                rows = self.conn.execute(
+                    "SELECT * FROM interactions WHERE student_id = ? AND agent = ? AND topic = ? ORDER BY id DESC LIMIT ?",
+                    (student_id, agent, topic, limit),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    "SELECT * FROM interactions WHERE student_id = ? AND agent = ? ORDER BY id DESC LIMIT ?",
+                    (student_id, agent, limit),
+                ).fetchall()
+        elif topic:
             rows = self.conn.execute(
-                "SELECT * FROM interactions WHERE student_id = ? AND agent = ? ORDER BY id DESC LIMIT ?",
-                (student_id, agent, limit),
+                "SELECT * FROM interactions WHERE student_id = ? AND topic = ? ORDER BY id DESC LIMIT ?",
+                (student_id, topic, limit),
             ).fetchall()
         else:
             rows = self.conn.execute(

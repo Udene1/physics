@@ -193,13 +193,20 @@ function showSection(sectionId) {
     });
 }
 
-async function loadHistoryOnStartup() {
+async function loadHistoryOnStartup(topic = null) {
     try {
-        const resp = await fetch('/history');
+        let url = '/history';
+        if (topic) url += `?topic=${encodeURIComponent(topic)}`;
+        
+        const resp = await fetch(url);
         const data = await resp.json();
-        if (data.history && data.history.length > 0) {
-            // Clear the default greeting if we have real history
+        if (data.history) {
             chatMessages.innerHTML = '';
+            // If no history and no topic, restore landing message
+            if (data.history.length === 0 && !topic) {
+                appendMessage('assistant', '🌟 UDENE COMPANION', 'Welcome! Ready to solve some Physics or Hardware challenges today? 🚀');
+                return;
+            }
             data.history.forEach(msg => {
                 appendMessage(msg.role, msg.label, msg.content);
             });
@@ -209,9 +216,45 @@ async function loadHistoryOnStartup() {
     }
 }
 
+async function loadHistorySidebar() {
+    const list = document.getElementById('history-sidebar-list');
+    if (!list) return;
+    
+    try {
+        const resp = await fetch('/sessions');
+        const data = await resp.json();
+        
+        if (data.sessions && data.sessions.length > 0) {
+            list.innerHTML = '';
+            data.sessions.forEach(session => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                // Use different icons based on agent if possible
+                const icon = session.agent.includes('Math') ? '📐' : 
+                             session.agent.includes('Physics') ? '⚛️' : 
+                             session.agent.includes('Hardware') ? '🔧' : '💬';
+                
+                item.innerHTML = `<span class="icon">${icon}</span> <span>${session.topic}</span>`;
+                item.onclick = () => {
+                    // Highlight active
+                    document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    loadHistoryOnStartup(session.topic);
+                };
+                list.appendChild(item);
+            });
+        } else {
+            list.innerHTML = '<div style="font-size: 0.75rem; color: #4b5563; padding: 1rem;">No recent sessions</div>';
+        }
+    } catch (err) {
+        console.error('Failed to load sessions:', err);
+    }
+}
+
 // Call on startup
 document.addEventListener('DOMContentLoaded', () => {
     loadHistoryOnStartup();
+    loadHistorySidebar();
 });
 
 function clearChat() {
