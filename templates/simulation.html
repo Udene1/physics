@@ -3,193 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Udene Simulation Sandbox</title>
+    <title>Udene Logic Lab | Professional Hardware Simulation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0f172a;
-            --card: #1e293b;
-            --accent: #38bdf8;
-            --text: #f1f5f9;
+            --bg-dark: #030712;
+            --glass-bg: rgba(17, 24, 39, 0.7);
+            --accent-blue: #38bdf8;
+            --accent-green: #22c55e;
+            --accent-red: #f87171;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --border: rgba(255, 255, 255, 0.1);
         }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 100vh;
         }
+
+        /* Premium Backdrop */
+        .bg-glow {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.05) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 90%, rgba(34, 197, 94, 0.05) 0%, transparent 40%);
+            z-index: -1;
+        }
+
         header {
-            padding: 1rem 2rem;
-            background: var(--card);
+            height: 70px;
+            padding: 0 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid var(--accent);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            z-index: 10;
         }
-        .main-container {
-            flex: 1;
-            display: flex;
-            padding: 1rem;
-            gap: 1rem;
-        }
-        .toolbox {
-            width: 250px;
-            background: var(--card);
+
+        .logo-area { display: flex; align-items: center; gap: 1rem; }
+        .logo-area h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+        .btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.6rem 1.2rem;
             border-radius: 10px;
-            padding: 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .btn-primary { background: var(--accent-blue); border: none; color: #000; }
+        .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+
+        .lab-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 300px 1fr 320px;
+            overflow: hidden;
+        }
+
+        /* Sidebar Panels */
+        .panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(8px);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            padding: 1.5rem;
         }
-        .canvas-area {
-            flex: 1;
-            background: #111;
-            border-radius: 10px;
-            position: relative;
-            overflow: hidden;
-            border: 1px dashed #444;
+        .panel-right { border-right: none; border-left: 1px solid var(--border); }
+
+        h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); margin-bottom: 1.5rem; }
+
+        .toolbox-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
         }
-        .component {
-            background: #334155;
-            padding: 0.8rem;
-            border-radius: 5px;
-            cursor: grab;
-            user-select: none;
-            text-align: center;
-            border: 1px solid #475569;
-        }
-        .component:hover {
-            border-color: var(--accent);
-        }
-        .btn {
-            background: var(--accent);
-            color: var(--bg);
-            border: none;
-            padding: 0.8rem 1.5rem;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        #sim-canvas {
-            width: 100%;
-            height: 100%;
-        }
-        .info-panel {
-            position: absolute;
-            bottom: 1rem;
-            right: 1rem;
-            background: rgba(30, 41, 59, 0.9);
+
+        .component-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
             padding: 1rem;
-            border-radius: 10px;
-            max-width: 300px;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.2s;
+        }
+        .component-card:hover { border-color: var(--accent-blue); background: rgba(56, 189, 248, 0.05); }
+        .comp-icon { font-size: 1.5rem; }
+        .comp-info b { display: block; font-size: 0.9rem; }
+        .comp-info span { font-size: 0.75rem; color: var(--text-secondary); }
+
+        /* Simulation Board */
+        .sim-board {
+            position: relative;
+            background: #020617;
+            background-image: 
+                radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            cursor: crosshair;
+        }
+        canvas { width: 100%; height: 100%; }
+
+        /* Inspector & Logs */
+        .inspector-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .data-card {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+        }
+        .data-card h3 { font-size: 0.85rem; color: var(--accent-blue); margin-bottom: 0.75rem; }
+        .data-row { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .data-value { font-family: 'JetBrains Mono', monospace; color: var(--accent-green); }
+
+        .log-box {
+            flex: 1;
+            background: #000;
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: #4ade80;
+            overflow-y: auto;
+            border: 1px solid #1e293b;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 1rem;
+            background: rgba(17, 24, 39, 0.9);
+            padding: 0.75rem;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .mode-badge {
+            position: absolute;
+            top: 1.5rem;
+            left: 1.5rem;
+            padding: 0.4rem 1rem;
+            background: var(--accent-green);
+            color: #000;
+            font-size: 0.7rem;
+            font-weight: 800;
+            border-radius: 100px;
+            text-transform: uppercase;
         }
     </style>
 </head>
 <body>
+    <div class="bg-glow"></div>
     <header>
-        <h1>🔬 Udene Logic Sandbox</h1>
-        <div>
-            <button class="btn" onclick="runSim()">▶ Test Circuit</button>
-            <button class="btn" onclick="window.location.href='/'" style="background: #64748b;">Back to Chat</button>
+        <div class="logo-area">
+            <span style="font-size: 1.5rem;">🔬</span>
+            <h1>UDENE LOGIC LAB</h1>
+        </div>
+        <div style="display: flex; gap: 1rem;">
+            <button class="btn" onclick="resetLab()">🧹 Reset</button>
+            <a href="/" class="btn">🚪 Exit Lab</a>
         </div>
     </header>
 
-    <div class="main-container">
-        <div class="toolbox">
-            <h3>🧩 Components</h3>
-            <div class="component" draggable="true" data-type="battery">🔋 9V Battery</div>
-            <div class="component" draggable="true" data-type="led">💡 LED</div>
-            <div class="component" draggable="true" data-type="resistor">🏷️ 220Ω Resistor</div>
-            <div class="component" draggable="true" data-type="switch">🔘 Toggle Switch</div>
-            <div class="component" draggable="true" data-type="motor">⚙️ DC Motor</div>
-            <hr>
-            <p><small>Drag components onto the board to build your prototype!</small></p>
-        </div>
-
-        <div class="canvas-area" id="drop-zone">
-            <canvas id="sim-canvas"></canvas>
-            <div class="info-panel">
-                <h4>System Status</h4>
-                <div id="status">Ready. Select a component to begin.</div>
+    <div class="lab-container">
+        <aside class="panel">
+            <h2>Components</h2>
+            <div class="toolbox-grid">
+                <div class="component-card" draggable="true" ondragstart="handleDragStart(event, 'battery')">
+                    <div class="comp-icon">🔋</div>
+                    <div class="comp-info"><b>18650 Cell</b><span>3.7V - 4.2V Power</span></div>
+                </div>
+                <div class="component-card" draggable="true" ondragstart="handleDragStart(event, 'led')">
+                    <div class="comp-icon">💡</div>
+                    <div class="comp-info"><b>LED (Blue)</b><span>3.2V / 20mA Load</span></div>
+                </div>
+                <div class="component-card" draggable="true" ondragstart="handleDragStart(event, 'resistor')">
+                    <div class="comp-icon">🏷️</div>
+                    <div class="comp-info"><b>Resistor</b><span>220Ω Protection</span></div>
+                </div>
+                <div class="component-card" draggable="true" ondragstart="handleDragStart(event, 'switch')">
+                    <div class="comp-icon">🔘</div>
+                    <div class="comp-info"><b>Toggle Switch</b><span>Circuit Control</span></div>
+                </div>
+                <div class="component-card" draggable="true" ondragstart="handleDragStart(event, 'motor')">
+                    <div class="comp-icon">⚙️</div>
+                    <div class="comp-info"><b>DC Motor</b><span>Inductive Load</span></div>
+                </div>
             </div>
-        </div>
+            <div style="margin-top: auto; padding: 1rem; background: rgba(56, 189, 248, 0.05); border-radius: 12px; border: 1px dashed var(--accent-blue);">
+                <p style="font-size: 0.75rem; line-height: 1.5; color: var(--accent-blue);">
+                    <b>TIP:</b> Drag components to spawn them. Click and drag pins to make connections. Electron flow shows where energy is moving!
+                </p>
+            </div>
+        </aside>
+
+        <main class="sim-board" id="drop-zone">
+            <div class="mode-badge" id="sim-status">System Standby</div>
+            <canvas id="lab-canvas"></canvas>
+            
+            <div class="controls">
+                <button class="btn btn-primary" id="run-btn" onclick="toggleSimulation()">▶ Start Simulation</button>
+                <button class="btn" onclick="clearWires()">✂️ Cut Wires</button>
+            </div>
+        </main>
+
+        <aside class="panel panel-right">
+            <div class="inspector-panel">
+                <h2>Inspector</h2>
+                <div class="data-card">
+                    <h3>⚡ Live Metrics</h3>
+                    <div class="data-row"><span>Voltage</span> <span class="data-value" id="val-v">0.00 V</span></div>
+                    <div class="data-row"><span>Current</span> <span class="data-value" id="val-i">0.00 mA</span></div>
+                    <div class="data-row"><span>Power</span> <span class="data-value" id="val-p">0.00 mW</span></div>
+                </div>
+                
+                <h2>Simulation Log</h2>
+                <div class="log-box" id="sim-log">
+                    [SYSTEM] Udene Logic Engine v2.0 initialized.<br>
+                    [SYSTEM] Ready for hardware prototyping.
+                </div>
+            </div>
+        </aside>
     </div>
 
-    <script>
-        const canvas = document.getElementById('sim-canvas');
-        const ctx = canvas.getContext('2d');
-        let elements = [];
-
-        function resize() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
-            draw();
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Draw grid
-            ctx.strokeStyle = '#222';
-            for(let x=0; x<canvas.width; x+=50) {
-                ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke();
-            }
-            for(let y=0; y<canvas.height; y+=50) {
-                ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke();
-            }
-
-            elements.forEach(el => {
-                ctx.fillStyle = '#38bdf8';
-                ctx.fillRect(el.x, el.y, 80, 50);
-                ctx.fillStyle = '#000';
-                ctx.font = '12px Arial';
-                ctx.fillText(el.type, el.x + 5, el.y + 30);
-            });
-        }
-
-        const dropZone = document.getElementById('drop-zone');
-        dropZone.addEventListener('dragover', e => e.preventDefault());
-        dropZone.addEventListener('drop', e => {
-            const type = e.dataTransfer.getData('text/plain');
-            const rect = canvas.getBoundingClientRect();
-            elements.push({
-                type: type,
-                x: e.clientX - rect.left - 40,
-                y: e.clientY - rect.top - 25
-            });
-            draw();
-        });
-
-        document.querySelectorAll('.component').forEach(comp => {
-            comp.addEventListener('dragstart', e => {
-                e.dataTransfer.setData('text/plain', comp.dataset.type);
-            });
-        });
-
-        function runSim() {
-            const status = document.getElementById('status');
-            if (elements.length < 2) {
-                status.innerText = "⚠️ Missing connections. Need at least a power source and a load.";
-                return;
-            }
-            // Simple logic check
-            const hasPower = elements.some(e => e.type === 'battery');
-            const hasLoad = elements.some(e => e.type === 'led' || e.type === 'motor');
-            const hasResistor = elements.some(e => e.type === 'resistor');
-
-            if (hasPower && hasLoad) {
-                if (elements.some(e => e.type === 'led') && !hasResistor) {
-                    status.innerHTML = "💥 <span style='color:#f87171'>POOF! The LED burned out. You forgot a current-limiting resistor!</span>";
-                } else {
-                    status.innerHTML = "🚀 <span style='color:#4ade80'>CRUISE CONTROL! The circuit is working perfectly.</span>";
-                }
-            } else {
-                status.innerText = "The circuit is incomplete. Ensure you have a battery and a device connected.";
-            }
-        }
-    </script>
+    <!-- Simulation Engine -->
+    <script src="{{ url_for('static', filename='js/sandbox_v2.js') }}"></script>
 </body>
 </html>
