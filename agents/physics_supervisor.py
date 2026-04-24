@@ -225,12 +225,8 @@ class PhysicsSupervisorAgent(BaseAgent):
             "End with a specific 'Check for Understanding' question."
         )
         
-        lesson = super().chat(user_msg=f"Give me a lesson on {topic_name}", context=teaching_context, student_id=student_id)
+        lesson = super().chat(user_msg=f"Give me a lesson on {topic_name}", context=f"Topic: {topic_name}\n{teaching_context}", student_id=student_id)
         
-        # 4. Save to local DB for distillation
-        if self.db and "Offline" not in lesson:
-            self.db.save_distilled_lesson(topic_name, "physics", lesson, self.model)
-
         if self.db:
             self.db.log_interaction(
                 student_id=student_id,

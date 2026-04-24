@@ -161,12 +161,8 @@ class MathTutorAgent(BaseAgent):
             "like market trade or construction). Do NOT give practice problems yet. "
             "End by asking if they feel ready for a practice problem."
         )
-        lesson = super().chat(prompt, context="Provide only the lesson content.", student_id=student_id)
+        lesson = super().chat(prompt, context=f"Topic: {topic_name}\nProvide only the lesson content.", student_id=student_id)
         
-        # 3. Save to local DB for distillation
-        if self.db and "Offline" not in lesson:
-            self.db.save_distilled_lesson(topic_name, "math", lesson, self.model)
-
         if self.db:
             self.db.log_interaction(
                 student_id=student_id,

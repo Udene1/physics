@@ -390,6 +390,23 @@ class BaseAgent:
 
         response = self._call_llm(messages)
 
+        # NEW: Auto-Distillation Logic
+        # If the response is substantial and appears educational, save it.
+        if self.db and len(response) > 500 and "Offline" not in response:
+            try:
+                # Detect topic if possible from context or message
+                topic = "General Knowledge"
+                if context and ":" in context:
+                    topic = context.split(":")[1].split("\n")[0].strip()
+                elif "lesson" in user_msg.lower() or "teach" in user_msg.lower():
+                    # Extract topic from command if present
+                    topic = user_msg.replace("/lesson", "").replace("/teach", "").strip() or "General Knowledge"
+                
+                # Only distill if it's a high-quality explanation
+                if any(kw in response.lower() for kw in ["principles", "analogy", "step", "concept"]):
+                    self.db.save_distilled_lesson(topic, self.name.lower(), response, self.model)
+            except Exception: pass
+
         history = self._get_history(student_id)
         history.append({"role": "user", "content": user_msg})
         history.append({"role": "assistant", "content": response})
