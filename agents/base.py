@@ -157,12 +157,27 @@ class BaseAgent:
                                 self.model,
                                 system_instruction=self.system_prompt
                             )
-                    except Exception:
-                        print("WARNING: Could not enumerate Gemini models. Switching to offline.")
-                        self._backend = "offline"
+                    except Exception as e2:
+                        print(f"DEBUG: Could not list models: {e2}")
             except Exception as e:
-                print(f"WARNING: Gemini Init failed: {e}")
+                print(f"GEMINI CONFIG ERROR: {e}")
                 self._backend = "offline"
+
+    def get_embedding(self, text: str) -> Optional[list[float]]:
+        """Generate a semantic embedding for a piece of text (Gemini only)."""
+        if self._backend == "gemini" and GEMINI_AVAILABLE:
+            try:
+                # Cache-friendly embedding call
+                result = genai.embed_content(
+                    model="models/text-embedding-04",
+                    content=text,
+                    task_type="retrieval_document"
+                )
+                return result['embedding']
+            except Exception as e:
+                print(f"Embedding Error: {e}")
+                return None
+        return None
 
     def check_health(self) -> dict:
         """Check the status of the current backend for Edge resilience."""
@@ -237,19 +252,31 @@ class BaseAgent:
         return messages
 
     def _lookup_relevant_knowledge(self, user_msg: str) -> str:
-        """Scan user message for keywords and return relevant distilled content from the DB."""
+        """Scan user message for semantic matches and return relevant distilled content."""
         if not self.db: return ""
         try:
-            # For a lightweight offline system, we scan the topic names.
-            # In production, this would be a vector search / embedding lookup.
+            # 1. Try Semantic Search (Vector)
+            emb = self.get_embedding(user_msg)
+            if emb:
+                matches = self.db.search_semantic_knowledge(emb, limit=2)
+                if matches and matches[0]['score'] > 0.7: # High similarity threshold
+                    results = []
+                    for m in matches:
+                        verified_tag = " [VERIFIED]" if m['verified'] else ""
+                        results.append(f"[{m['topic']}]{verified_tag}: {m['content'][:800]}...")
+                    return "\n\n".join(results)
+
+            # 2. Fallback: Keyword Search
             msg_lower = user_msg.lower()
-            rows = self.db.conn.execute("SELECT topic, content FROM distilled_knowledge").fetchall()
-            matches = []
+            rows = self.db.conn.execute("SELECT topic, content, verified FROM distilled_knowledge").fetchall()
+            keyword_matches = []
             for row in rows:
                 if row['topic'].lower() in msg_lower:
-                    matches.append(f"[{row['topic']}]: {row['content'][:500]}...")
-            return "\n\n".join(matches)
-        except Exception:
+                    tag = " [VERIFIED]" if row['verified'] else ""
+                    keyword_matches.append(f"[{row['topic']}]{tag}: {row['content'][:500]}...")
+            return "\n\n".join(keyword_matches)
+        except Exception as e:
+            print(f"Lookup Error: {e}")
             return ""
 
     def _call_llm(self, messages: list[dict]) -> str:
@@ -404,7 +431,8 @@ class BaseAgent:
                 
                 # Only distill if it's a high-quality explanation
                 if any(kw in response.lower() for kw in ["principles", "analogy", "step", "concept"]):
-                    self.db.save_distilled_lesson(topic, self.name.lower(), response, self.model)
+                    emb = self.get_embedding(response)
+                    self.db.save_distilled_lesson(topic, self.name.lower(), response, self.model, embedding=emb)
             except Exception: pass
 
         history = self._get_history(student_id)

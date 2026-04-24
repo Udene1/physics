@@ -113,7 +113,13 @@ class ProgressDB:
             );
 
             INSERT OR IGNORE INTO session_meta (key, value) VALUES ('schema_version', '1.1');
-
+        """)
+        # Manual column migration if table already existed
+        try:
+            self.conn.execute("ALTER TABLE distilled_knowledge ADD COLUMN embedding BLOB")
+            self.conn.commit()
+        except: pass 
+        self.conn.executescript("""
             CREATE TABLE IF NOT EXISTS agent_states (
                 student_id INTEGER NOT NULL,
                 agent_name TEXT NOT NULL,
@@ -130,8 +136,12 @@ class ProgressDB:
                 content TEXT,
                 source_llm TEXT,
                 verified INTEGER DEFAULT 0,
+                embedding BLOB, -- New: Store vector embeddings for semantic search
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            -- Ensure embedding column exists for existing databases
+            PRAGMA table_info(distilled_knowledge);
 
             -- Learning Signals Table (for future training/analytics)
             CREATE TABLE IF NOT EXISTS learning_signals (
@@ -629,13 +639,59 @@ class ProgressDB:
         self.conn.close()
     # --- Knowledge Distillation ---
 
-    def save_distilled_lesson(self, topic: str, category: str, content: str, source_llm: str = None):
+    def save_distilled_lesson(self, topic: str, category: str, content: str, 
+                             source_llm: str = None, embedding: list[float] = None):
         """Save a high-quality lesson for future offline/fast retrieval."""
+        import struct
+        emb_blob = None
+        if embedding:
+            # Store as binary blob (floats)
+            emb_blob = struct.pack(f'{len(embedding)}f', *embedding)
+            
         self.conn.execute('''
-            INSERT OR REPLACE INTO distilled_knowledge (topic, category, content, source_llm)
-            VALUES (?, ?, ?, ?)
-        ''', (topic, category, content, source_llm))
+            INSERT OR REPLACE INTO distilled_knowledge (topic, category, content, source_llm, embedding)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (topic, category, content, source_llm, emb_blob))
         self.conn.commit()
+
+    def search_semantic_knowledge(self, query_embedding: list[float], limit: int = 3) -> list[dict]:
+        """Find the most semantically similar lessons using cosine similarity."""
+        import struct
+        import math
+
+        if not query_embedding: return []
+
+        # 1. Fetch all rows with embeddings
+        rows = self.conn.execute("SELECT id, topic, content, embedding, verified FROM distilled_knowledge WHERE embedding IS NOT NULL").fetchall()
+        
+        matches = []
+        for r in rows:
+            # Unpack blob to float list
+            emb_blob = r['embedding']
+            if not emb_blob: continue
+            
+            # Assuming 768 or 1536 dim - get count from length
+            dim = len(emb_blob) // 4
+            db_vec = struct.unpack(f'{dim}f', emb_blob)
+            
+            # Calculate Cosine Similarity
+            dot = sum(a*b for a, b in zip(query_embedding, db_vec))
+            norm_a = math.sqrt(sum(a*a for a in query_embedding))
+            norm_b = math.sqrt(sum(b*b for b in db_vec))
+            
+            score = dot / (norm_a * norm_b) if (norm_a * norm_b) > 0 else 0
+            
+            matches.append({
+                "id": r['id'],
+                "topic": r['topic'],
+                "content": r['content'],
+                "score": score,
+                "verified": r['verified']
+            })
+        
+        # 2. Sort by score
+        matches.sort(key=lambda x: x['score'], reverse=True)
+        return matches[:limit]
 
     def get_distilled_lesson(self, topic: str) -> Optional[dict]:
         """Retrieve a previously distilled lesson, prioritizing verified ones."""
