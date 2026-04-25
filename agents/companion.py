@@ -94,7 +94,7 @@ class CompanionAgent(BaseAgent):
                     student_info += f"Needs work: {', '.join(m['topic'] + '(' + str(int(m['score'])) + '%)' for m in weak[:5])}.\n"
 
             # Inject streak and recent activity
-            stats = self.db.get_gamification(student_id)
+            stats = self.db.get_stats(student_id)
             if stats and stats.get('streak_days', 0) > 0:
                 student_info += f"STREAK: {stats['streak_days']} days in a row!\n"
             elif stats:
