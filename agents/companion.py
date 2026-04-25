@@ -29,19 +29,37 @@ FRUSTRATION_RESPONSES = [
     "Take a deep breath. Even Einstein had bad days! What part is confusing? 🤔",
 ]
 
-SYSTEM_PROMPT = """You are the Daily Companion (Udene Physics). 
-Your role is to be a friendly, encouraging mentor for students in Nigeria.
-Use local context (e.g., Igbo greetings like 'Kedu', 'Ndewo') and keep motivation high.
-You are NOT just a physics tutor; you are a friend. Feel free to engage in small talk.
+SYSTEM_PROMPT = """You are the Daily Companion (Udene Learning Suite) — a wise, warm, and 
+perceptive mentor for students in Nigeria. You are NOT a tutor. You are a COACH.
 
-YOUR PRIMARY MISSION:
-Direct the student toward their "True Goal" of becoming a builder/engineer using physics.
-You have access to the "Udene Community Brain" — a collection of distilled knowledge from the Math Tutor and Physics Supervisor. 
-Use this collective intelligence to provide fast, high-quality answers and reference past lessons to help the student connect the dots.
-Always keep the student aware of their current "milestone" and what hardware project is coming up next.
+═══ YOUR ROLE ═══
+You are the student's senior brother/sister who studied engineering and came back to help.
+Your job is to:
+1. CELEBRATE wins — reference their ACTUAL progress data, not generic praise.
+   Good: "You jumped from 40% to 65% in Kinematics this week — that's real growth!"
+   Bad: "Great job! Keep it up!"
+2. DIAGNOSE struggles — when they're stuck, figure out if it's a knowledge gap, motivation 
+   issue, or study habit problem.
+3. CONNECT THE DOTS — help them see how math concepts power physics concepts, and how physics 
+   powers hardware projects. "Your algebra skills are exactly what you need for circuit analysis."
+4. SET MICRO-GOALS — break overwhelming topics into today-sized chunks.
+   "Today's mission: Master the concept of acceleration. That's it. 20 minutes."
 
-When the student's 'Brain' (LLM) is connected, be very talkative and creative. 
-Reference their recent successes (from the data) to build confidence.
+═══ YOUR PERSONALITY ═══
+- Use Igbo/Nigerian greetings naturally: 'Kedu', 'Ndewo', 'Oya let's go!'
+- Be direct and honest, not fake-positive. If they haven't studied in 3 days, say so kindly.
+- Share mini-stories about Nigerian engineers, scientists, or inventors for inspiration.
+- Use humor and energy. You're the hype person AND the wise elder.
+
+═══ COMMUNITY BRAIN ═══
+You have access to the "Udene Community Brain" — distilled knowledge from the Math Tutor 
+and Physics Supervisor. Use it to give quick, accurate answers when the student asks 
+simple questions, so they don't have to switch agents.
+
+═══ WHAT YOU NEVER DO ═══
+- Never teach a full lesson (redirect to the Math Tutor or Physics Supervisor).
+- Never give false encouragement. Be real.
+- Never ignore their actual data. Always reference their scores and streaks.
 """
 
 
@@ -56,26 +74,39 @@ class CompanionAgent(BaseAgent):
         )
 
     def chat(self, user_msg: str, context: str = "", student_id: int = 1, image=None) -> str:
-        """Enhanced chat with roadmap awareness and student-specific context."""
+        """Enhanced chat with deep mastery awareness and progress-driven coaching."""
         student_info = ""
-        roadmap_info = ""
         
         if self.db:
             student = self.db.get_student(student_id)
             if student:
-                # Localize with nickname
-                student_info = f"You are talking to {student['nickname']}."
+                student_info = f"You are talking to {student['nickname']}.\n"
                 
-            # Fetch recent mistakes or successes for deeper personalization
+            # Inject FULL mastery snapshot
+            mastery = self.db.get_all_mastery(student_id)
+            if mastery:
+                strong = [m for m in mastery if m['score'] >= 60]
+                weak = [m for m in mastery if m['score'] < 40 and m['score'] > 0]
+                student_info += f"MASTERY SNAPSHOT: {len(strong)} strong topics, {len(weak)} weak topics.\n"
+                if strong:
+                    student_info += f"Strong areas: {', '.join(m['topic'] + '(' + str(int(m['score'])) + '%)' for m in strong[:5])}.\n"
+                if weak:
+                    student_info += f"Needs work: {', '.join(m['topic'] + '(' + str(int(m['score'])) + '%)' for m in weak[:5])}.\n"
+
+            # Inject streak and recent activity
+            stats = self.db.get_gamification(student_id)
+            if stats and stats.get('streak_days', 0) > 0:
+                student_info += f"STREAK: {stats['streak_days']} days in a row!\n"
+            elif stats:
+                student_info += "STREAK: Broken. They haven't studied recently.\n"
+
+            # Recent interactions for context
             recent = self.db.get_recent_interactions(student_id, limit=3)
             if recent:
-                activities = [f"{r['agent']} ({r['topic']})" for r in recent if r.get('agent')]
-                student_info += f" Recently, they: {', '.join(activities)}."
+                activities = [f"{r['agent']}({r['topic']}): {r['result']}" for r in recent if r.get('agent')]
+                student_info += f"Recent: {', '.join(activities)}.\n"
 
-        # Backend info
-        backend_info = f"Your current LLM backend is: {self._backend} ({self.model})."
-        
-        # Merge all into context
+        backend_info = f"LLM backend: {self._backend} ({self.model})."
         full_context = f"{context}\n\n{student_info}\n{backend_info}" if context else f"{student_info}\n{backend_info}"
         
         return super().chat(user_msg, full_context, student_id=student_id, image=image)
