@@ -16,18 +16,37 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "memory")
 DEFAULT_DB_PATH = os.path.join(DB_DIR, "progress.db")
 
 
+import threading
+
 class ProgressDB:
     """Lightweight SQLite wrapper for all persistent learning state."""
 
     def __init__(self, db_path: str = DEFAULT_DB_PATH):
+        self.db_path = db_path
+        self.local = threading.local()
+        
         db_dir = os.path.dirname(db_path)
         if db_dir and db_path != ":memory:":
             os.makedirs(db_dir, exist_ok=True)
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+            
+        # Run migrations on __init__ (this creates a connection for the main thread)
         self._create_tables()
         self._migrate_if_needed()
         self.preload_topics()
+
+    @property
+    def conn(self):
+        """Thread-local connection pool to prevent 'database is locked' errors."""
+        if not hasattr(self.local, 'conn'):
+            # The increased timeout ensures concurrent threads wait politely
+            self.local.conn = sqlite3.connect(
+                self.db_path, 
+                check_same_thread=False, 
+                timeout=15.0, 
+                isolation_level="IMMEDIATE"
+            )
+            self.local.conn.row_factory = sqlite3.Row
+        return self.local.conn
 
     # ── Schema ──────────────────────────────────────────────────────
 
