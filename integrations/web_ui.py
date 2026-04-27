@@ -73,6 +73,7 @@ def launch_web_ui():
         response = agent.chat(message)
 
         db.log_interaction(
+            student_id=1, # Default student for Web UI
             agent=agent.name, topic=intent,
             user_input=message[:500], agent_response=response[:500], result="ok",
         )

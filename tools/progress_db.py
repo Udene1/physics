@@ -46,6 +46,12 @@ class ProgressDB:
                 isolation_level="IMMEDIATE"
             )
             self.local.conn.row_factory = sqlite3.Row
+            # Enable WAL mode for better concurrency (multiple readers + 1 writer)
+            try:
+                self.local.conn.execute("PRAGMA journal_mode=WAL")
+                self.local.conn.execute("PRAGMA synchronous=NORMAL")
+            except:
+                pass
         return self.local.conn
 
     # ── Schema ──────────────────────────────────────────────────────
@@ -174,7 +180,11 @@ class ProgressDB:
             );
         """)
 
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def _migrate_if_needed(self):
         """Handle migrations for old single-user databases."""
@@ -258,7 +268,11 @@ class ProgressDB:
             self.conn.commit()
             return cur.lastrowid
         except sqlite3.IntegrityError:
+            self.conn.rollback()
             return -1 # Nickname taken
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_student(self, student_id: int) -> Optional[dict]:
         row = self.conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
@@ -312,7 +326,11 @@ class ProgressDB:
                    VALUES (?, ?, ?, ?, 1, ?, ?)""",
                 (student_id, topic, category, 100.0 if correct else 0.0, 1 if correct else 0, now),
             )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def set_mastery_score(self, student_id: int, topic: str, category: str, score: float):
         now = datetime.now().isoformat()
@@ -322,7 +340,11 @@ class ProgressDB:
                ON CONFLICT(student_id, topic) DO UPDATE SET score = ?, last_updated = ?""",
             (student_id, topic, category, score, now, score, now),
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     # ── Interactions ────────────────────────────────────────────────
 
@@ -335,7 +357,11 @@ class ProgressDB:
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (student_id, now, agent, topic, user_input, agent_response, result),
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_recent_interactions(self, student_id: int, limit: int = 20, agent: str = None, topic: str = None) -> list[dict]:
         if agent:
@@ -407,7 +433,11 @@ class ProgressDB:
             (student_id, name, description, json.dumps(related_topics),
              json.dumps(components or []), now),
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
         return cur.lastrowid
 
     def get_projects(self, student_id: int, status: str = None) -> list[dict]:
@@ -429,7 +459,11 @@ class ProgressDB:
             "UPDATE projects SET status = ?, completed_at = ? WHERE student_id = ? AND id = ?",
             (status, completed, student_id, project_id),
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     # ── Goals ───────────────────────────────────────────────────────
 
@@ -440,7 +474,11 @@ class ProgressDB:
                VALUES (?, ?, 'pending', ?, ?, ?)""",
             (student_id, description, agent, now, due_date),
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
         return cur.lastrowid
 
     def get_pending_goals(self, student_id: int) -> list[dict]:
@@ -455,7 +493,11 @@ class ProgressDB:
             "UPDATE goals SET status = 'completed', completed_at = ? WHERE student_id = ? AND id = ?",
             (now, student_id, goal_id),
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     # ── Gamification ────────────────────────────────────────────────
 
@@ -490,7 +532,11 @@ class ProgressDB:
                 "UPDATE gamification SET streak_days = ?, last_active_date = ? WHERE student_id = ?",
                 (new_streak, today, student_id)
             )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_stats(self, student_id: int) -> dict:
         row = self.conn.execute(
@@ -509,7 +555,11 @@ class ProgressDB:
                 "UPDATE gamification SET badges_json = ? WHERE student_id = ?",
                 (json.dumps(badges), student_id)
             )
-            self.conn.commit()
+            try:
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                raise
             return True
         return False
 
@@ -527,7 +577,11 @@ class ProgressDB:
                ON CONFLICT(key) DO UPDATE SET value = ?""",
             (key, value, value),
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     # ── Agent Persistent States ───────────────────────────────────
 
@@ -548,7 +602,11 @@ class ProgressDB:
                ON CONFLICT(student_id, agent_name) DO UPDATE SET state_json = ?""",
             (student_id, agent_name, state_json, state_json)
         )
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     # ── Reports ─────────────────────────────────────────────────────
 
@@ -631,7 +689,11 @@ class ProgressDB:
                 (name, category, difficulty, prerequisites, build_hint, description)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, t)
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_topic(self, name: str) -> Optional[dict]:
         row = self.conn.execute("SELECT * FROM topics WHERE LOWER(name) = LOWER(?)", (name,)).fetchone()
@@ -671,7 +733,11 @@ class ProgressDB:
             INSERT OR REPLACE INTO distilled_knowledge (topic, category, content, source_llm, embedding)
             VALUES (?, ?, ?, ?, ?)
         ''', (topic, category, content, source_llm, emb_blob))
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def search_semantic_knowledge(self, query_embedding: list[float], limit: int = 3) -> list[dict]:
         """Find the most semantically similar lessons using cosine similarity."""
@@ -723,7 +789,11 @@ class ProgressDB:
     def verify_distilled_lesson(self, lesson_id: int):
         """Mark a lesson as verified by an expert/sage."""
         self.conn.execute("UPDATE distilled_knowledge SET verified = 1 WHERE id = ?", (lesson_id,))
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_unverified_lessons(self, category: str = None) -> list[dict]:
         query = "SELECT * FROM distilled_knowledge WHERE verified = 0"
@@ -740,4 +810,8 @@ class ProgressDB:
             INSERT INTO learning_signals (student_id, topic, signal_type, value)
             VALUES (?, ?, ?, ?)
         ''', (student_id, topic, signal_type, value))
-        self.conn.commit()
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
