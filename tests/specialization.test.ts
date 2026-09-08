@@ -27,6 +27,7 @@ test('atomic nuclear specialization is distinct from quantum and follows quantum
   db.setMastery(student, 'arithmetic', 100);
   db.setMastery(student, 'graphs', 100);
   db.setMastery(student, 'algebra', 100);
+  db.setMastery(student, 'functions', 100);
   db.setMastery(student, 'quantum', 100);
   engine.selectModernSpecialization(student, 'atomic_nuclear');
   assert.equal(engine.modernSpecialization(student), 'atomic_nuclear');
