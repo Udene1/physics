@@ -22,7 +22,7 @@ test('next action schedules a due review before a new lesson', () => {
   const engine = new LearningEngine(db);
   engine.start(student);
   db.setMastery(student, 'arithmetic', 100);
-  db.scheduleReview(student, 'arithmetic', false);
+  db.db.prepare('INSERT INTO reviews(student_id,concept_id,due_at,interval_days,repetitions) VALUES(?,?,?,?,?)').run(student,'arithmetic','2000-01-01T00:00:00.000Z',1,0);
   const action = engine.nextAction(student);
   assert.equal(action.kind, 'review');
   assert.equal(action.conceptId, 'arithmetic');
