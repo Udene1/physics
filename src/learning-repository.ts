@@ -19,4 +19,5 @@ export interface LearningRepository {
   getDueReviews(studentId:number,now?:string):ReviewRecord[];
   recordProblemAttempt(studentId:number,problemId:string,conceptId:string,answer:string,correct:boolean,reasoning:string,confidence:number|null,reasoningSignals?:ReasoningSignal[],misconceptionCodes?:string[]):ProblemAttemptRecord;
   listProblemAttempts(studentId:number,problemId?:string):ProblemAttemptRecord[];
+  transaction<T>(work:()=>T):T;
 }
