@@ -46,9 +46,14 @@ export const PHYSICS_PROBLEMS: readonly PhysicsProblem[] = [
     {id:'direction',description:'Infers acceleration in the direction of the net force.',keywords:['right','to the right','same direction'],required:true,misconceptionCode:'forces-wrong-direction'},
     {id:'units',description:'Reports acceleration in metres per second squared.',keywords:['m/s²','m/s2','metres per second squared'],required:true,misconceptionCode:'forces-wrong-unit'}
   ] },
+  { id:'graphs-slope-speed', conceptId:'graphs', title:'Read motion from a graph', prompt:'A position-time graph shows position increasing from 0 m to 20 m over 4 s. What speed does the slope represent?', difficulty:2, answerType:'numeric', answer:'5', tolerance:0, reasoningPrompts:['What two quantities determine the slope?','What physical quantity does position change per unit time represent?'], reasoningCriteria:[
+    {id:'slope-model',description:'Uses slope as change in vertical quantity divided by change in horizontal quantity.',keywords:['slope','change in position / time','change in position divided by time','rise over run','20 m / 4 s'],required:true,misconceptionCode:'graphs-wrong-slope-model'},
+    {id:'physical-meaning',description:'Connects position change per time to speed.',keywords:['speed','velocity','position per time'],required:true,misconceptionCode:'graphs-missing-physical-meaning'},
+    {id:'units',description:'Tracks metres per second for the slope.',keywords:['m/s','metres per second'],required:true,misconceptionCode:'graphs-wrong-unit'}
+  ] },
 ];
 
 const byId = new Map(PHYSICS_PROBLEMS.map(problem => [problem.id, problem]));
-export function getProblem(id:string):PhysicsProblem { const problem=byId.get(id); if(!problem) throw new Error(`Unknown problem: ${id}`); return problem; }
+export function getProblem(id:string):PhysicsProblem { const problem=byId.get(id);if(!problem)throw new Error(`Unknown problem: ${id}`);return problem; }
 export function problemsForConcept(conceptId:string):PhysicsProblem[] { return PHYSICS_PROBLEMS.filter(problem=>problem.conceptId===conceptId); }
-export function isAnswerCorrect(problem:PhysicsProblem, answer:string):boolean { if(problem.answerType==='numeric'){const actual=Number(answer.trim());const expected=Number(problem.answer);return Number.isFinite(actual)&&Math.abs(actual-expected)<=(problem.tolerance??0);} return answer.trim().toLowerCase()===problem.answer.trim().toLowerCase(); }
+export function isAnswerCorrect(problem:PhysicsProblem,answer:string):boolean { if(problem.answerType==='numeric'){const actual=Number(answer.trim());const expected=Number(problem.answer);return Number.isFinite(actual)&&Math.abs(actual-expected)<=(problem.tolerance??0);}return answer.trim().toLowerCase()===problem.answer.trim().toLowerCase(); }
