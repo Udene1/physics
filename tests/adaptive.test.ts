@@ -30,6 +30,18 @@ test('evidence estimates use repeated weighted evidence rather than one score', 
   assert.equal(estimates[0]?.evidenceCount, 3);
 });
 
+test('diagnostic evaluation incorporates evidence already stored for the learner', () => {
+  const db = new LearningStore(':memory:');
+  const student = db.ensureStudent('Evidence learner');
+  const engine = new LearningEngine(db);
+  engine.start(student);
+  engine.diagnostic(student, [{ conceptId: 'measurement', score: 100, kind: 'diagnostic', difficulty: 1 }]);
+  const result = engine.diagnostic(student, [{ conceptId: 'measurement', score: 0, kind: 'diagnostic', difficulty: 1 }]);
+  assert.equal(result.scores.measurement, 50);
+  assert.equal(db.listEvidence(student, 'measurement').length, 2);
+  db.close();
+});
+
 test('engineering challenge unlocks only after demonstrated physics mastery', () => {
   const db = new LearningStore(':memory:');
   const student = db.ensureStudent('Builder');
