@@ -3,6 +3,9 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export interface MasteryRecord { studentId:number; conceptId:string; score:number; attempts:number; correct:number; updatedAt:string; }
+export interface MisconceptionRecord { id:number; studentId:number; conceptId:string; code:string; note:string; status:'open'|'resolved'; createdAt:string; resolvedAt:string|null; }
+export interface ResumeState { lessonId:string; problemId:string|null; step:number; updatedAt:string; }
+export interface ReviewRecord { conceptId:string; dueAt:string; intervalDays:number; repetitions:number; }
 
 export class LearningStore {
   readonly db: DatabaseSync;
@@ -15,6 +18,9 @@ export class LearningStore {
       CREATE TABLE IF NOT EXISTS mastery (student_id INTEGER NOT NULL, concept_id TEXT NOT NULL, score REAL NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, correct INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, PRIMARY KEY(student_id, concept_id), FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
       CREATE TABLE IF NOT EXISTS learner_sessions (student_id INTEGER PRIMARY KEY, status TEXT NOT NULL, current_concept TEXT, diagnostic_index INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
       CREATE TABLE IF NOT EXISTS evidence (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, concept_id TEXT NOT NULL, kind TEXT NOT NULL, value REAL, note TEXT, created_at TEXT NOT NULL, FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
+      CREATE TABLE IF NOT EXISTS misconceptions (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, concept_id TEXT NOT NULL, code TEXT NOT NULL, note TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL, resolved_at TEXT, FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
+      CREATE TABLE IF NOT EXISTS resume_state (student_id INTEGER PRIMARY KEY, lesson_id TEXT NOT NULL, problem_id TEXT, step INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
+      CREATE TABLE IF NOT EXISTS reviews (student_id INTEGER NOT NULL, concept_id TEXT NOT NULL, due_at TEXT NOT NULL, interval_days INTEGER NOT NULL DEFAULT 1, repetitions INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(student_id, concept_id), FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
     `);
   }
   close(): void { this.db.close(); }
@@ -51,5 +57,42 @@ export class LearningStore {
   }
   addEvidence(studentId:number, conceptId:string, kind:string, value:number|null, note:string): void {
     this.db.prepare('INSERT INTO evidence(student_id,concept_id,kind,value,note,created_at) VALUES(?,?,?,?,?,?)').run(studentId,conceptId,kind,value,note,new Date().toISOString());
+  }
+  addMisconception(studentId:number, conceptId:string, code:string, note:string): MisconceptionRecord {
+    const result = this.db.prepare('INSERT INTO misconceptions(student_id,concept_id,code,note,status,created_at) VALUES(?,?,?,?,?,?)').run(studentId,conceptId,code,note,'open',new Date().toISOString());
+    return this.getMisconception(Number(result.lastInsertRowid))!;
+  }
+  getMisconception(id:number): MisconceptionRecord|undefined {
+    const row = this.db.prepare('SELECT id,student_id,concept_id,code,note,status,created_at,resolved_at FROM misconceptions WHERE id = ?').get(id) as any;
+    return row ? {id:row.id,studentId:row.student_id,conceptId:row.concept_id,code:row.code,note:row.note,status:row.status,createdAt:row.created_at,resolvedAt:row.resolved_at} : undefined;
+  }
+  listOpenMisconceptions(studentId:number, conceptId?:string): MisconceptionRecord[] {
+    const rows = (conceptId === undefined
+      ? this.db.prepare('SELECT id,student_id,concept_id,code,note,status,created_at,resolved_at FROM misconceptions WHERE student_id = ? AND status = \'open\' ORDER BY id').all(studentId)
+      : this.db.prepare('SELECT id,student_id,concept_id,code,note,status,created_at,resolved_at FROM misconceptions WHERE student_id = ? AND concept_id = ? AND status = \'open\' ORDER BY id').all(studentId,conceptId)) as any[];
+    return rows.map(row => ({id:row.id,studentId:row.student_id,conceptId:row.concept_id,code:row.code,note:row.note,status:row.status,createdAt:row.created_at,resolvedAt:row.resolved_at}));
+  }
+  resolveMisconception(id:number): void {
+    this.db.prepare('UPDATE misconceptions SET status = \'resolved\', resolved_at = ? WHERE id = ? AND status = \'open\'').run(new Date().toISOString(),id);
+  }
+  saveResume(studentId:number, lessonId:string, problemId:string|null, step:number): void {
+    if (!lessonId.trim() || !Number.isInteger(step) || step < 0) throw new Error('Invalid resume state');
+    this.db.prepare(`INSERT INTO resume_state(student_id,lesson_id,problem_id,step,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET lesson_id=excluded.lesson_id,problem_id=excluded.problem_id,step=excluded.step,updated_at=excluded.updated_at`).run(studentId,lessonId,problemId,step,new Date().toISOString());
+  }
+  getResume(studentId:number): ResumeState|undefined {
+    const row = this.db.prepare('SELECT lesson_id,problem_id,step,updated_at FROM resume_state WHERE student_id = ?').get(studentId) as {lesson_id:string;problem_id:string|null;step:number;updated_at:string}|undefined;
+    return row ? {lessonId:row.lesson_id,problemId:row.problem_id,step:row.step,updatedAt:row.updated_at} : undefined;
+  }
+  scheduleReview(studentId:number, conceptId:string, correct:boolean): ReviewRecord {
+    const current = this.db.prepare('SELECT interval_days,repetitions FROM reviews WHERE student_id = ? AND concept_id = ?').get(studentId,conceptId) as {interval_days:number;repetitions:number}|undefined;
+    const repetitions = correct ? (current?.repetitions ?? 0) + 1 : 0;
+    const intervalDays = correct ? Math.min(30, Math.max(1, (current?.interval_days ?? 0) * 2 || 1)) : 1;
+    const dueAt = new Date(Date.now() + intervalDays * 86400000).toISOString();
+    this.db.prepare(`INSERT INTO reviews(student_id,concept_id,due_at,interval_days,repetitions) VALUES(?,?,?,?,?) ON CONFLICT(student_id,concept_id) DO UPDATE SET due_at=excluded.due_at,interval_days=excluded.interval_days,repetitions=excluded.repetitions`).run(studentId,conceptId,dueAt,intervalDays,repetitions);
+    return {conceptId,dueAt,intervalDays,repetitions};
+  }
+  getDueReviews(studentId:number, now = new Date().toISOString()): ReviewRecord[] {
+    const rows = this.db.prepare('SELECT concept_id,due_at,interval_days,repetitions FROM reviews WHERE student_id = ? AND due_at <= ? ORDER BY due_at').all(studentId,now) as Array<{concept_id:string;due_at:string;interval_days:number;repetitions:number}>;
+    return rows.map(r => ({conceptId:r.concept_id,dueAt:r.due_at,intervalDays:r.interval_days,repetitions:r.repetitions}));
   }
 }
