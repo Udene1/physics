@@ -1,40 +1,48 @@
-import { chooseNextPhysicsConcept, getConcept, missingRequirements } from './curriculum.js';
-import { LearningStore } from './store.js';
+import { chooseNextPhysicsConcept, CURRICULUM, getConcept, missingRequirements, ModernSpecialization } from './curriculum.js';
+import { DiagnosticEngine } from './diagnostic.js';
+import { diagnoseReasoning } from './reasoning.js';
+import { getProblem, isAnswerCorrect, problemsForConcept, PhysicsProblem } from './problems.js';
+import { getLesson, lessonsForConcept, PhysicsLesson } from './lessons.js';
+import { availableEngineeringChallenges, getEngineeringChallenge, EngineeringChallenge } from './engineering.js';
+import { evidenceSummary, MasteryEstimate } from './evidence.js';
+import { chooseNextAction, NextAction } from './routing.js';
+import type { LearningRepository } from './learning-repository.js';
+import { MisconceptionRecord, ProblemAttemptRecord, ReviewRecord, ResumeState } from './store.js';
 
-export type LearningStatus = 'new' | 'diagnostic' | 'learning';
-export interface LearnerSnapshot { studentId:number; status:LearningStatus; currentConcept:string|null; nextConcept:string|null; mastery:Record<string,number>; missingRequirements:string[]; }
-
-export class LearningEngine {
-  constructor(private readonly store: LearningStore) {}
-  start(studentId:number): LearnerSnapshot {
-    const existing = this.store.getSession(studentId);
-    if (!existing) this.store.saveSession(studentId, 'diagnostic', null, 0);
-    return this.snapshot(studentId);
-  }
-  snapshot(studentId:number): LearnerSnapshot {
-    const session = this.store.getSession(studentId);
-    const mastery = this.store.getMastery(studentId);
-    const next = chooseNextPhysicsConcept(mastery);
-    const current = session?.currentConcept ?? null;
-    return { studentId, status:(session?.status ?? 'new') as LearningStatus, currentConcept:current, nextConcept:next?.id ?? null, mastery, missingRequirements:next ? missingRequirements(mastery,next.id) : [] };
-  }
-  setCurrent(studentId:number, conceptId:string): void {
-    getConcept(conceptId);
-    const mastery = this.store.getMastery(studentId);
-    const missing = missingRequirements(mastery, conceptId);
-    if (missing.length) throw new Error(`Cannot start ${conceptId}; requirements not yet demonstrated: ${missing.join(', ')}`);
-    this.store.saveSession(studentId, 'learning', conceptId, 0);
-  }
-  recordAttempt(studentId:number, conceptId:string, correct:boolean, note=''): LearnerSnapshot {
-    getConcept(conceptId);
-    this.store.recordMastery(studentId, conceptId, correct);
-    this.store.addEvidence(studentId, conceptId, 'attempt', correct ? 1 : 0, note);
-    this.store.saveSession(studentId, 'learning', conceptId, 0);
-    return this.snapshot(studentId);
-  }
-  placeByDemonstratedMastery(studentId:number, scores:Record<string,number>): LearnerSnapshot {
-    for (const [conceptId,score] of Object.entries(scores)) { getConcept(conceptId); this.store.setMastery(studentId, conceptId, score); this.store.addEvidence(studentId, conceptId, 'placement', score, 'Demonstrated ability placement'); }
-    this.store.saveSession(studentId, 'learning', null, 0);
-    return this.snapshot(studentId);
-  }
+export type LearningStatus='new'|'diagnostic'|'learning';
+export type JourneyStatus='locked'|'available'|'learning'|'mastered';
+export interface JourneyNode{id:string;name:string;domain:string;status:JourneyStatus;mastery:number;prerequisites:string[];mathDependencies:string[];}
+export interface RemediationPlan{misconceptionId:number|null;sourceConcept:string;targetConcept:string;retryProblemId:string;reason:'misconception'|'prerequisite';retryRequired:true;}
+export interface LearnerSnapshot{studentId:number;status:LearningStatus;currentConcept:string|null;nextConcept:string|null;mastery:Record<string,number>;missingRequirements:string[];openMisconceptions:number;resume:ResumeState|undefined;dueReviews:ReviewRecord[];journey:JourneyNode[];}
+export interface ProblemSubmission{problemId:string;answer:string;reasoning:string;confidence?:number|null;}
+const REMEDIATION_TARGETS:Record<string,string>={'velocity-vs-speed':'graphs','speed-wrong-model':'measurement','speed-missing-quantities':'measurement','speed-missing-average-concept':'motion','speed-wrong-unit':'measurement','displacement-missing-position':'motion','displacement-missing-direction':'motion','displacement-wrong-model':'motion','displacement-confuses-distance':'motion','forces-wrong-model':'motion','forces-missing-quantities':'measurement','forces-wrong-direction':'vectors','forces-wrong-unit':'measurement','graphs-wrong-slope-model':'graphs','graphs-missing-physical-meaning':'motion','graphs-wrong-unit':'measurement','energy-wrong-work-model':'motion','energy-missing-transfer':'energy','energy-wrong-unit':'measurement','momentum-wrong-model':'forces','momentum-missing-direction':'vectors','momentum-wrong-unit':'measurement','waves-wrong-model':'motion','waves-missing-quantities':'measurement','waves-wrong-unit':'measurement','circuits-wrong-power-model':'energy','circuits-missing-quantities':'measurement','circuits-wrong-unit':'measurement','relativity-absolute-time':'motion','relativity-missing-invariance':'motion','quantum-classical-certainty':'waves','quantum-wrong-state-model':'waves'};
+const SPECIALIZATION_CONCEPT:Record<ModernSpecialization,string>={relativity:'relativity',quantum:'quantum',atomic_nuclear:'atomic_nuclear'};
+export class LearningEngine{
+ constructor(private readonly store:LearningRepository){}
+ start(studentId:number):LearnerSnapshot{if(!this.store.getSession(studentId))this.store.saveSession(studentId,'diagnostic',null,0);return this.snapshot(studentId);}
+ journey(studentId:number):JourneyNode[]{const mastery=this.store.getMastery(studentId);return CURRICULUM.map(c=>{const score=mastery[c.id]??0;const req=missingRequirements(mastery,c.id);const status:JourneyStatus=score>=100?'mastered':req.length?'locked':score>0?'learning':'available';return{id:c.id,name:c.name,domain:c.domain,status,mastery:score,prerequisites:[...c.prerequisites],mathDependencies:[...c.mathDependencies]};});}
+ snapshot(studentId:number):LearnerSnapshot{const session=this.store.getSession(studentId);const mastery=this.store.getMastery(studentId);const next=chooseNextPhysicsConcept(mastery);return{studentId,status:(session?.status??'new')as LearningStatus,currentConcept:session?.currentConcept??null,nextConcept:next?.id??null,mastery,missingRequirements:next?missingRequirements(mastery,next.id):[],openMisconceptions:this.store.listOpenMisconceptions(studentId).length,resume:this.store.getResume(studentId),dueReviews:this.store.getDueReviews(studentId),journey:this.journey(studentId)};}
+ nextAction(studentId:number):NextAction{return chooseNextAction(this.store,studentId);}
+ diagnostic(studentId:number,observations:import('./diagnostic.js').DiagnosticObservation[]){return new DiagnosticEngine(this.store).evaluate(studentId,observations);}
+ evidence(studentId:number,conceptId?:string){return this.store.listEvidence(studentId,conceptId);}
+ masteryEstimates(studentId:number):MasteryEstimate[]{return evidenceSummary(this.store,studentId);}
+ setCurrent(studentId:number,conceptId:string):void{getConcept(conceptId);const missing=missingRequirements(this.store.getMastery(studentId),conceptId);if(missing.length)throw new Error(`Cannot start ${conceptId}; requirements not yet demonstrated: ${missing.join(', ')}`);this.store.saveSession(studentId,'learning',conceptId,0);}
+ saveResume(studentId:number,lessonId:string,problemId:string|null,step:number):void{const lesson=getLesson(lessonId);if(problemId!==null&&getProblem(problemId).conceptId!==lesson.conceptId)throw new Error('Resume problem does not belong to the lesson concept');this.store.saveResume(studentId,lessonId,problemId,step);}
+ lessons(studentId:number,conceptId:string):PhysicsLesson[]{getConcept(conceptId);const missing=missingRequirements(this.store.getMastery(studentId),conceptId);if(missing.length)throw new Error(`Cannot load lessons for ${conceptId}; requirements not yet demonstrated: ${missing.join(', ')}`);return lessonsForConcept(conceptId);}
+ lesson(studentId:number,lessonId:string):PhysicsLesson{const lesson=getLesson(lessonId);const missing=missingRequirements(this.store.getMastery(studentId),lesson.conceptId);if(missing.length)throw new Error(`Cannot load lesson ${lessonId}; requirements not yet demonstrated: ${missing.join(', ')}`);return lesson;}
+ advanceLesson(studentId:number,lessonId:string,step:number):ResumeState{const lesson=this.lesson(studentId,lessonId);if(!Number.isInteger(step)||step<0||step>=lesson.steps.length)throw new Error('Lesson step is outside the lesson');this.store.saveResume(studentId,lessonId,null,step);this.store.saveSession(studentId,'learning',lesson.conceptId,step);return this.store.getResume(studentId)!;}
+ problems(studentId:number,conceptId:string):PhysicsProblem[]{getConcept(conceptId);const missing=missingRequirements(this.store.getMastery(studentId),conceptId);if(missing.length)throw new Error(`Cannot load problems for ${conceptId}; requirements not yet demonstrated: ${missing.join(', ')}`);return problemsForConcept(conceptId);}
+ problem(studentId:number,problemId:string):PhysicsProblem{const problem=getProblem(problemId);const missing=missingRequirements(this.store.getMastery(studentId),problem.conceptId);if(missing.length)throw new Error(`Cannot load problem ${problemId}; requirements not yet demonstrated: ${missing.join(', ')}`);return problem;}
+ submitProblem(studentId:number,submission:ProblemSubmission):ProblemAttemptRecord{const problem=this.problem(studentId,submission.problemId);const reasoning=submission.reasoning.trim();if(!reasoning)throw new Error('Reasoning is required for a problem attempt');const confidence=submission.confidence??null;if(confidence!==null&&(!Number.isFinite(confidence)||confidence<0||confidence>100))throw new Error('Confidence must be between 0 and 100');const correct=isAnswerCorrect(problem,submission.answer);const diagnosis=diagnoseReasoning(problem,reasoning);return this.store.transaction(()=>{const attempt=this.store.recordProblemAttempt(studentId,problem.id,problem.conceptId,submission.answer,correct,reasoning,confidence,diagnosis.signals,diagnosis.misconceptionCodes);this.store.addEvidence(studentId,problem.conceptId,'problem',correct?100:0,JSON.stringify({reasoningSignals:diagnosis.signals,misconceptionCodes:diagnosis.misconceptionCodes,coverage:diagnosis.coverage,reasoningQuality:diagnosis.reasoningQuality,confidence}));for(const code of diagnosis.misconceptionCodes){if(!this.store.listOpenMisconceptions(studentId,problem.conceptId).some(m=>m.code===code))this.store.addMisconception(studentId,problem.conceptId,code,`Detected from reasoning on ${problem.id}: ${code}`);}this.store.recordMastery(studentId,problem.conceptId,correct);this.store.scheduleReview(studentId,problem.conceptId,correct);this.store.saveResume(studentId,`${problem.conceptId}-problems`,problem.id,0);this.store.saveSession(studentId,'learning',problem.conceptId,0);return attempt;});}
+ recordAttempt(studentId:number,conceptId:string,correct:boolean,note=''):LearnerSnapshot{return this.store.transaction(()=>{getConcept(conceptId);this.store.recordMastery(studentId,conceptId,correct);this.store.addEvidence(studentId,conceptId,'attempt',correct?100:0,note);this.store.scheduleReview(studentId,conceptId,correct);this.store.saveSession(studentId,'learning',conceptId,0);return this.snapshot(studentId);});}
+ recordMisconception(studentId:number,conceptId:string,code:string,note:string):MisconceptionRecord{getConcept(conceptId);return this.store.addMisconception(studentId,conceptId,code,note);}
+ remediation(studentId:number,conceptId:string):RemediationPlan|null{getConcept(conceptId);const mastery=this.store.getMastery(studentId);const misconception=this.store.listOpenMisconceptions(studentId,conceptId)[0];const prerequisite=missingRequirements(mastery,conceptId)[0];const target=prerequisite??(misconception?REMEDIATION_TARGETS[misconception.code]??conceptId:conceptId);const missing=missingRequirements(mastery,target);if(missing.length)return null;const retryProblem=problemsForConcept(target)[0];if(!retryProblem)return null;if(misconception)return{misconceptionId:misconception.id,sourceConcept:conceptId,targetConcept:target,retryProblemId:retryProblem.id,reason:'misconception',retryRequired:true};if(prerequisite)return{misconceptionId:null,sourceConcept:conceptId,targetConcept:target,retryProblemId:retryProblem.id,reason:'prerequisite',retryRequired:true};return null;}
+ retryRemediation(studentId:number,misconceptionId:number,submission:ProblemSubmission):LearnerSnapshot{const misconception=this.store.getMisconception(misconceptionId);if(!misconception||misconception.studentId!==studentId||misconception.status!=='open')throw new Error('Open misconception not found for learner');const target=REMEDIATION_TARGETS[misconception.code]??misconception.conceptId;const submitted=getProblem(submission.problemId);if(submitted.conceptId!==target)throw new Error('Retry problem does not target the recorded misconception');const attempt=this.submitProblem(studentId,submission);if(attempt.correct&&attempt.misconceptionCodes.length===0)this.store.resolveMisconception(misconceptionId);return this.snapshot(studentId);}
+ listOpenMisconceptions(studentId:number,conceptId?:string):MisconceptionRecord[]{return this.store.listOpenMisconceptions(studentId,conceptId);}
+ resolveMisconception(_id:number):void{throw new Error('Misconceptions can only be resolved by a successful remediation retry');}
+ modernSpecialization(studentId:number):ModernSpecialization|undefined{return this.store.getModernSpecialization(studentId);}
+ selectModernSpecialization(studentId:number,specialization:ModernSpecialization):void{const conceptId=SPECIALIZATION_CONCEPT[specialization];if(!conceptId)throw new Error(`Unsupported Modern Physics specialization: ${specialization}`);const missing=missingRequirements(this.store.getMastery(studentId),conceptId);if(missing.length)throw new Error(`Cannot select ${specialization}; requirements not yet demonstrated: ${missing.join(', ')}`);this.store.setModernSpecialization(studentId,specialization);}
+ engineeringChallenges(studentId:number):EngineeringChallenge[]{return availableEngineeringChallenges(this.store.getMastery(studentId));}
+ engineeringChallenge(studentId:number,id:string):EngineeringChallenge{const challenge=getEngineeringChallenge(id);const mastery=this.store.getMastery(studentId);const missing=challenge.requiredPhysics.filter(concept=>(mastery[concept]??0)<70);if(missing.length)throw new Error(`Challenge ${id} is locked; physics requirements not yet demonstrated: ${missing.join(', ')}`);return challenge;}
+ placeByDemonstratedMastery(studentId:number,scores:Record<string,number>):LearnerSnapshot{return this.store.transaction(()=>{for(const[conceptId,score]of Object.entries(scores)){getConcept(conceptId);this.store.setMastery(studentId,conceptId,score);this.store.addEvidence(studentId,conceptId,'placement',score,'Demonstrated ability placement');}this.store.saveSession(studentId,'learning',null,0);return this.snapshot(studentId);});}
 }
