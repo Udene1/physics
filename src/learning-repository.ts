@@ -1,6 +1,16 @@
 import type { MasteryRecord, MisconceptionRecord, ProblemAttemptRecord, ResumeState, ReviewRecord } from './store.js';
 import type { ReasoningSignal } from './reasoning.js';
 
+export interface EvidenceRecord {
+  id: number;
+  studentId: number;
+  conceptId: string;
+  kind: string;
+  value: number | null;
+  note: string;
+  createdAt: string;
+}
+
 export interface LearningRepository {
   ensureStudent(nickname:string):number;
   getMastery(studentId:number):Record<string,number>;
@@ -9,6 +19,7 @@ export interface LearningRepository {
   saveSession(studentId:number,status:string,currentConcept:string|null,diagnosticIndex:number):void;
   getSession(studentId:number):{status:string;currentConcept:string|null;diagnosticIndex:number}|undefined;
   addEvidence(studentId:number,conceptId:string,kind:string,value:number|null,note:string):void;
+  listEvidence(studentId:number,conceptId?:string):EvidenceRecord[];
   addMisconception(studentId:number,conceptId:string,code:string,note:string):MisconceptionRecord;
   getMisconception(id:number):MisconceptionRecord|undefined;
   listOpenMisconceptions(studentId:number,conceptId?:string):MisconceptionRecord[];
