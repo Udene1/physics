@@ -2,17 +2,18 @@ import { chooseNextPhysicsConcept, CURRICULUM, getConcept, missingRequirements }
 import { DiagnosticEngine } from './diagnostic.js';
 import { diagnoseReasoning } from './reasoning.js';
 import { getProblem, isAnswerCorrect, problemsForConcept, PhysicsProblem } from './problems.js';
-import { LearningStore, MisconceptionRecord, ProblemAttemptRecord, ReviewRecord, ResumeState } from './store.js';
+import type { LearningRepository } from './learning-repository.js';
+import { MisconceptionRecord, ProblemAttemptRecord, ReviewRecord, ResumeState } from './store.js';
 
 export type LearningStatus='new'|'diagnostic'|'learning';
 export type JourneyStatus='locked'|'available'|'learning'|'mastered';
-export interface JourneyNode { id:string;name:string;domain:string;status:JourneyStatus;mastery:number;prerequisites:string[];mathDependencies:string[]; }
-export interface RemediationPlan { misconceptionId:number|null;sourceConcept:string;targetConcept:string;reason:'misconception'|'prerequisite';retryRequired:true; }
-export interface LearnerSnapshot { studentId:number;status:LearningStatus;currentConcept:string|null;nextConcept:string|null;mastery:Record<string,number>;missingRequirements:string[];openMisconceptions:number;resume:ResumeState|undefined;dueReviews:ReviewRecord[];journey:JourneyNode[]; }
-export interface ProblemSubmission { problemId:string;answer:string;reasoning:string;confidence?:number|null; }
+export interface JourneyNode{id:string;name:string;domain:string;status:JourneyStatus;mastery:number;prerequisites:string[];mathDependencies:string[];}
+export interface RemediationPlan{misconceptionId:number|null;sourceConcept:string;targetConcept:string;reason:'misconception'|'prerequisite';retryRequired:true;}
+export interface LearnerSnapshot{studentId:number;status:LearningStatus;currentConcept:string|null;nextConcept:string|null;mastery:Record<string,number>;missingRequirements:string[];openMisconceptions:number;resume:ResumeState|undefined;dueReviews:ReviewRecord[];journey:JourneyNode[];}
+export interface ProblemSubmission{problemId:string;answer:string;reasoning:string;confidence?:number|null;}
 
-export class LearningEngine {
- constructor(private readonly store:LearningStore){}
+export class LearningEngine{
+ constructor(private readonly store:LearningRepository){}
  start(studentId:number):LearnerSnapshot{if(!this.store.getSession(studentId))this.store.saveSession(studentId,'diagnostic',null,0);return this.snapshot(studentId);}
  journey(studentId:number):JourneyNode[]{const mastery=this.store.getMastery(studentId);return CURRICULUM.map(c=>{const score=mastery[c.id]??0;const req=missingRequirements(mastery,c.id);const status:JourneyStatus=score>=100?'mastered':req.length?'locked':score>0?'learning':'available';return{id:c.id,name:c.name,domain:c.domain,status,mastery:score,prerequisites:[...c.prerequisites],mathDependencies:[...c.mathDependencies]};});}
  snapshot(studentId:number):LearnerSnapshot{const session=this.store.getSession(studentId);const mastery=this.store.getMastery(studentId);const next=chooseNextPhysicsConcept(mastery);return{studentId,status:(session?.status??'new')as LearningStatus,currentConcept:session?.currentConcept??null,nextConcept:next?.id??null,mastery,missingRequirements:next?missingRequirements(mastery,next.id):[],openMisconceptions:this.store.listOpenMisconceptions(studentId).length,resume:this.store.getResume(studentId),dueReviews:this.store.getDueReviews(studentId),journey:this.journey(studentId)};}
