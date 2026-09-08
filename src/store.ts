@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { ReasoningSignal } from './reasoning.js';
+import { migrateSqlite } from './sqlite-migrations.js';
 
 export interface MasteryRecord { studentId:number; conceptId:string; score:number; attempts:number; correct:number; updatedAt:string; }
 export interface MisconceptionRecord { id:number; studentId:number; conceptId:string; code:string; note:string; status:'open'|'resolved'; createdAt:string; resolvedAt:string|null; }
@@ -20,8 +21,9 @@ CREATE TABLE IF NOT EXISTS misconceptions(id INTEGER PRIMARY KEY AUTOINCREMENT,s
 CREATE TABLE IF NOT EXISTS resume_state(student_id INTEGER PRIMARY KEY,lesson_id TEXT NOT NULL,problem_id TEXT,step INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL,FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS reviews(student_id INTEGER NOT NULL,concept_id TEXT NOT NULL,due_at TEXT NOT NULL,interval_days INTEGER NOT NULL DEFAULT 1,repetitions INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(student_id,concept_id),FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS problem_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,student_id INTEGER NOT NULL,problem_id TEXT NOT NULL,concept_id TEXT NOT NULL,answer TEXT NOT NULL,correct INTEGER NOT NULL,reasoning TEXT NOT NULL,confidence REAL,reasoning_signals TEXT NOT NULL DEFAULT '[]',misconception_codes TEXT NOT NULL DEFAULT '[]',created_at TEXT NOT NULL,FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
-`); }
+`); migrateSqlite(this.db); }
   close():void { this.db.close(); }
+  transaction<T>(work:()=>T):T { this.db.exec('BEGIN IMMEDIATE'); try { const result=work(); this.db.exec('COMMIT'); return result; } catch(error) { this.db.exec('ROLLBACK'); throw error; } }
   ensureStudent(nickname:string):number { const existing=this.db.prepare('SELECT id FROM students WHERE nickname=?').get(nickname) as {id:number}|undefined; if(existing)return existing.id; const result=this.db.prepare('INSERT INTO students(nickname,created_at) VALUES(?,?)').run(nickname,new Date().toISOString()); return Number(result.lastInsertRowid); }
   getMastery(studentId:number):Record<string,number> { const rows=this.db.prepare('SELECT concept_id,score FROM mastery WHERE student_id=?').all(studentId) as Array<{concept_id:string;score:number}>; return Object.fromEntries(rows.map(r=>[r.concept_id,r.score])); }
   recordMastery(studentId:number,conceptId:string,correct:boolean):MasteryRecord { const now=new Date().toISOString(); const current=this.db.prepare('SELECT score,attempts,correct FROM mastery WHERE student_id=? AND concept_id=?').get(studentId,conceptId) as {score:number;attempts:number;correct:number}|undefined; const attempts=(current?.attempts??0)+1; const correctCount=(current?.correct??0)+(correct?1:0); const score=Math.round((correctCount/attempts)*1000)/10; this.db.prepare(`INSERT INTO mastery(student_id,concept_id,score,attempts,correct,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(student_id,concept_id) DO UPDATE SET score=excluded.score,attempts=excluded.attempts,correct=excluded.correct,updated_at=excluded.updated_at`).run(studentId,conceptId,score,attempts,correctCount,now); return {studentId,conceptId,score,attempts,correct:correctCount,updatedAt:now}; }
