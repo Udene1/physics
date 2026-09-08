@@ -20,7 +20,6 @@ if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except AttributeError:
-        # Fallback for Python versions < 3.7
         import codecs
         sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
@@ -31,6 +30,7 @@ from agents.physics_supervisor import PhysicsSupervisorAgent
 from agents.hardware_bridge import HardwareBridgeAgent
 from agents.progress_tracker import ProgressTrackerAgent
 from tools.progress_db import ProgressDB
+from tools.learning_engine import LearningEngine
 
 # ── Intent Classification ────────────────────────────────────────
 
@@ -72,7 +72,6 @@ def classify_intent(msg: str) -> str:
         if msg_lower.startswith(("/problems", "/practice", "/verify", "/check", "/hint", "/next")):
             return "math", True
         if msg_lower.startswith(("/lesson", "/teach")):
-            # Check keywords for lesson routing
             if any(kw in msg_lower for kw in PHYSICS_KEYWORDS):
                 return "physics", True
             return "math", True
@@ -125,18 +124,70 @@ AGENT_LABELS = {
 }
 
 
+def _diagnostic_response(engine: LearningEngine, student_id: int, msg_lower: str):
+    """Handle persistent learner discovery commands without involving an LLM."""
+    if msg_lower in ("/start", "/diagnostic", "/assess", "start assessment"):
+        engine.start(student_id)
+        question = engine.current_question(student_id)
+        return "🧭 Learner Discovery", _format_diagnostic_question(question)
+
+    if msg_lower.startswith("/answer"):
+        parts = msg_lower.split()
+        if len(parts) != 2 or not parts[1].isdigit():
+            return "🧭 Learner Discovery", "Use `/answer 1`, `/answer 2`, `/answer 3`, or `/answer 4`."
+        question = engine.current_question(student_id)
+        if not question:
+            return "🧭 Learner Discovery", _format_snapshot(engine.snapshot(student_id))
+        try:
+            result = engine.answer(student_id, question["id"], int(parts[1]) - 1)
+        except ValueError as exc:
+            return "🧭 Learner Discovery", f"I couldn't record that answer: {exc}"
+        if result.get("complete"):
+            return "🧭 Learner Discovery", _format_snapshot(result)
+        feedback = "✅ Good." if result["correct"] else "🧩 That's useful evidence — we'll use it to place you correctly."
+        return "🧭 Learner Discovery", f"{feedback}\n\n{_format_diagnostic_question(result['next'])}"
+
+    if msg_lower in ("/where", "/learning-state", "/state"):
+        return "🧭 Learner Discovery", _format_snapshot(engine.snapshot(student_id))
+    return None
+
+
+def _format_diagnostic_question(question: dict | None) -> str:
+    if not question:
+        return "The learner discovery assessment is complete."
+    choices = "\n".join(f"  {i}. {choice}" for i, choice in enumerate(question["choices"], 1))
+    return (
+        f"🧭 **Learner Discovery — {question['number']}/{question['total']}**\n\n"
+        f"{question['prompt']}\n\n{choices}\n\n"
+        "Answer with `/answer <number>`. There is no penalty for not knowing."
+    )
+
+
+def _format_snapshot(snapshot: dict) -> str:
+    if snapshot["status"] != "complete":
+        progress = snapshot["diagnostic_progress"]
+        return f"🧭 Diagnostic in progress: {progress['answered']}/{progress['total']} answered."
+    stage = snapshot["current_stage"].replace("_", " ").title()
+    skill = snapshot["current_skill"].replace("_", " ").title()
+    return (
+        "🎯 **Your starting point is ready.**\n\n"
+        f"Stage: **{stage}**\n"
+        f"First focus: **{skill}**\n\n"
+        "Uden will build from this point instead of assuming you are a beginner. "
+        "Your learner state is stored so you can return later without losing your place."
+    )
+
+
 def handle_message(msg: str, agents: dict, db, student_id: int = 1, image=None) -> tuple[str, str]:
-    """
-    Process a user message and return (agent_label, response).
-    Supports multi-student state and optional multimodal 'image' data.
-    """
+    """Process a user message and return (agent_label, response)."""
     msg_lower = msg.lower().strip()
+
+    learner = _diagnostic_response(LearningEngine(db), student_id, msg_lower)
+    if learner:
+        return learner
 
     if msg_lower in ("/help", "help"):
         return "📚 Help", HELP_TEXT
-
-    if msg_lower == "/curriculum":
-        return "⚛️ PhysicsSupervisor", agents["physics"].get_curriculum_overview(student_id)
 
     if msg_lower == "/curriculum":
         return "⚛️ PhysicsSupervisor", agents["physics"].get_curriculum_overview(student_id)
@@ -150,28 +201,16 @@ def handle_message(msg: str, agents: dict, db, student_id: int = 1, image=None) 
             return "📋 Goals", "\n".join(lines)
         return "📋 Goals", "No pending goals — ask the Companion to set some!"
 
-    # Route to agent
     intent, was_matched = classify_intent(msg)
-    
-    # NEW IMPROVEMENT: Session Stickiness & Focus
-    # If the user responds with a short message or number, we should likely stay with the current agent.
     last_agent = db.get_meta("last_active_agent")
-    
+
     if last_agent and last_agent != "companion":
-        # Specific overrides for stickiness
         is_short = len(msg_lower) < 30
-        is_numeric = any(c.isdigit() for c in msg_lower)
-        is_session_cmd = msg_lower in ("hint", "next", "next problem", "give me a hint", "yes", "no", "ready")
-        
-        # If we were with Physics and it's a short/numeric response, don't let Math steal it
         if last_agent == "physics" and intent == "math" and is_short:
             intent = "physics"
-            
-        # If no strong intent was matched and we have a last agent, stick to it
         if not was_matched and last_agent:
             intent = last_agent
 
-    # Hard override for Math Tutor ONLY if it has an active problem set AND it's a math-like input
     if intent != "math":
         math_agent = agents.get("math")
         if math_agent:
@@ -181,7 +220,6 @@ def handle_message(msg: str, agents: dict, db, student_id: int = 1, image=None) 
                 if is_math_input:
                     intent = "math"
 
-    # If intent is companion, inject roadmap context
     context = ""
     if intent == "companion":
         try:
@@ -193,19 +231,14 @@ def handle_message(msg: str, agents: dict, db, student_id: int = 1, image=None) 
                 f"- Hardware Milestone: {roadmap['hardware_suggestion'] or 'None yet'}\n"
                 f"- Overall Progress: {roadmap['overall_progress']}%\n"
             )
-        except Exception: pass
+        except Exception:
+            pass
 
     agent = agents[intent]
     label = AGENT_LABELS.get(intent, "🤖 Agent")
-    
-    # Update student activity/streak
     db.update_streak(student_id)
-    
-    # Save last active agent for next turn
     db.set_meta("last_active_agent", intent)
-    
     response = agent.chat(msg, context=context, student_id=student_id, image=image)
-
     db.log_interaction(
         student_id=student_id,
         agent=agent.name, topic=intent,
@@ -217,6 +250,7 @@ def handle_message(msg: str, agents: dict, db, student_id: int = 1, image=None) 
 HELP_TEXT = """
 📚 **Available Commands:**
 
+**Start:** /start · /diagnostic · /answer <1-4> · /where
 **Math:** /lesson <topic> · /problems <topic> [difficulty] [count] · /verify <answer> · /hint · /next
 **Physics:** /curriculum · /study <topic> · /prereq <topic>
 **Hardware:** /builds · /build <name>
@@ -231,7 +265,7 @@ BANNER = """
 ║                 🧠 AI Learning Companion 🧠                 ║
 ║     Math · Physics · Hardware — Build to Improve Lives      ║
 ╠══════════════════════════════════════════════════════════════╣
-║  /problems · /builds · /curriculum · /report · /help · /quit ║
+║  /start · /problems · /builds · /curriculum · /report       ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 
@@ -239,27 +273,24 @@ BANNER = """
 def main():
     """CLI entry point."""
     print(BANNER)
-
     print("📦 Initializing...")
     agents, backend, model, db = init_agents()
     print(f"   ✅ Backend: {backend} ({model or 'offline'})")
-    print(f"   ✅ All agents ready\n")
+    print("   ✅ All agents ready\n")
 
     print("=" * 60)
     print(agents["companion"].greet(student_id=1))
-    
-    # Show Roadmap Summary in greeting
     try:
         roadmap = agents["physics"].get_roadmap_status(student_id=1)
         print(f"\n📍 **Current Focus:** {roadmap['current_focus']}")
         print(f"🎯 **Next Milestone:** {roadmap['next_step']}")
         if roadmap['hardware_suggestion']:
             print(f"🔧 **Hardware Gate:** {roadmap['hardware_suggestion']}")
-        
         prog = roadmap['overall_progress']
         bar = "█" * (prog // 5) + "░" * (20 - (prog // 5))
         print(f"\n🌍 **Journey Progress:** [{bar}] {prog}%")
-    except Exception: pass
+    except Exception:
+        pass
     print("=" * 60)
 
     while True:
@@ -270,7 +301,6 @@ def main():
 
         if not user_input:
             continue
-
         if user_input.lower() in ("/quit", "/exit", "quit", "exit"):
             print("\n📝 Generating session artifact...")
             filepath = agents["progress"].generate_session_artifact()
