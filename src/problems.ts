@@ -1,26 +1,7 @@
 export type ProblemAnswerType = 'numeric' | 'choice' | 'short_text';
 
-export interface ReasoningCriterion {
-  id: string;
-  description: string;
-  keywords: string[];
-  required?: boolean;
-  misconceptionCode?: string;
-}
-
-export interface PhysicsProblem {
-  id: string;
-  conceptId: string;
-  title: string;
-  prompt: string;
-  difficulty: number;
-  answerType: ProblemAnswerType;
-  answer: string;
-  tolerance?: number;
-  choices?: string[];
-  reasoningPrompts: string[];
-  reasoningCriteria: ReasoningCriterion[];
-}
+export interface ReasoningCriterion { id:string; description:string; keywords:string[]; required?:boolean; misconceptionCode?:string; }
+export interface PhysicsProblem { id:string; conceptId:string; title:string; prompt:string; difficulty:number; answerType:ProblemAnswerType; answer:string; tolerance?:number; choices?:string[]; reasoningPrompts:string[]; reasoningCriteria:ReasoningCriterion[]; }
 
 export const PHYSICS_PROBLEMS: readonly PhysicsProblem[] = [
   { id:'measurement-length-unit', conceptId:'measurement', title:'Measure before calculating', prompt:'A table is measured as 1.20 m long. Express its length in centimetres.', difficulty:1, answerType:'numeric', answer:'120', tolerance:0, reasoningPrompts:['What quantity are you converting?','What relationship between metres and centimetres did you use?'], reasoningCriteria:[
@@ -50,6 +31,34 @@ export const PHYSICS_PROBLEMS: readonly PhysicsProblem[] = [
     {id:'slope-model',description:'Uses slope as change in vertical quantity divided by change in horizontal quantity.',keywords:['slope','change in position / time','change in position divided by time','rise over run','20 m / 4 s'],required:true,misconceptionCode:'graphs-wrong-slope-model'},
     {id:'physical-meaning',description:'Connects position change per time to speed.',keywords:['speed','velocity','position per time'],required:true,misconceptionCode:'graphs-missing-physical-meaning'},
     {id:'units',description:'Tracks metres per second for the slope.',keywords:['m/s','metres per second'],required:true,misconceptionCode:'graphs-wrong-unit'}
+  ] },
+  { id:'energy-work', conceptId:'energy', title:'Work transfers energy', prompt:'A constant 20 N force moves an object 3 m in the force direction. How much work is done?', difficulty:2, answerType:'numeric', answer:'60', tolerance:0, reasoningPrompts:['What force and displacement matter?','Why does alignment with the displacement matter?'], reasoningCriteria:[
+    {id:'work-model',description:'Uses work as force times displacement in the force direction.',keywords:['work = force x distance','force times distance','W = Fd','20 N x 3 m','20 x 3'],required:true,misconceptionCode:'energy-wrong-work-model'},
+    {id:'energy-transfer',description:'Connects positive work with energy transfer to the object.',keywords:['energy','transfer','increases energy','positive work'],required:true,misconceptionCode:'energy-missing-transfer'},
+    {id:'units',description:'Reports work in joules.',keywords:['joule','joules','J'],required:true,misconceptionCode:'energy-wrong-unit'}
+  ] },
+  { id:'momentum-collision', conceptId:'momentum', title:'Momentum before a collision', prompt:'A 2 kg cart moves at 3 m/s. What is its momentum?', difficulty:2, answerType:'numeric', answer:'6', tolerance:0, reasoningPrompts:['Which quantities define momentum?','What direction would momentum have?'], reasoningCriteria:[
+    {id:'momentum-model',description:'Uses momentum p = mv.',keywords:['p = mv','momentum = mass x velocity','mass times velocity','2 kg x 3 m/s'],required:true,misconceptionCode:'momentum-wrong-model'},
+    {id:'direction',description:'Recognizes momentum has the velocity direction.',keywords:['direction','same direction','velocity direction'],required:true,misconceptionCode:'momentum-missing-direction'},
+    {id:'units',description:'Reports momentum in kg m/s.',keywords:['kg m/s','kg·m/s'],required:true,misconceptionCode:'momentum-wrong-unit'}
+  ] },
+  { id:'waves-frequency-speed', conceptId:'waves', title:'Wave speed from frequency and wavelength', prompt:'A wave has frequency 4 Hz and wavelength 2 m. What is its speed?', difficulty:2, answerType:'numeric', answer:'8', tolerance:0, reasoningPrompts:['What relationship connects wave speed, frequency and wavelength?','What do the units tell you?'], reasoningCriteria:[
+    {id:'wave-model',description:'Uses v = fλ.',keywords:['v = fλ','v=f lambda','frequency times wavelength','4 hz x 2 m'],required:true,misconceptionCode:'waves-wrong-model'},
+    {id:'quantities',description:'Identifies frequency and wavelength.',keywords:['frequency','4 Hz','wavelength','2 m'],required:true,misconceptionCode:'waves-missing-quantities'},
+    {id:'units',description:'Reports wave speed in metres per second.',keywords:['m/s','metres per second'],required:true,misconceptionCode:'waves-wrong-unit'}
+  ] },
+  { id:'circuits-power', conceptId:'circuits', title:'Electrical power', prompt:'A low-voltage circuit has 6 V across a component carrying 2 A. What power is delivered?', difficulty:2, answerType:'numeric', answer:'12', tolerance:0, reasoningPrompts:['Which electrical quantities determine power?','How does the unit volt-ampere relate to watts?'], reasoningCriteria:[
+    {id:'power-model',description:'Uses P = VI.',keywords:['P = VI','p=vi','voltage times current','6 V x 2 A'],required:true,misconceptionCode:'circuits-wrong-power-model'},
+    {id:'quantities',description:'Identifies voltage and current.',keywords:['voltage','6 V','current','2 A'],required:true,misconceptionCode:'circuits-missing-quantities'},
+    {id:'units',description:'Reports power in watts.',keywords:['watt','watts','W'],required:true,misconceptionCode:'circuits-wrong-unit'}
+  ] },
+  { id:'relativity-time', conceptId:'relativity', title:'Relativity changes time', prompt:'A thought experiment asks what happens to measured elapsed time for a moving clock as its speed approaches light speed. Which principle is central?', difficulty:3, answerType:'choice', answer:'time dilation', choices:['time dilation','absolute time','classical velocity addition','stationary ether'], reasoningPrompts:['What does special relativity say about measured time for relative motion?','Which principle replaces absolute time?'], reasoningCriteria:[
+    {id:'relativity-principle',description:'Recognizes that time measurements depend on relative motion.',keywords:['time dilation','relative motion','moving clock','relativity'],required:true,misconceptionCode:'relativity-absolute-time'},
+    {id:'invariance',description:'Connects the effect to invariant light speed.',keywords:['speed of light','light speed','invariant','c'],required:true,misconceptionCode:'relativity-missing-invariance'}
+  ] },
+  { id:'quantum-probability', conceptId:'quantum', title:'Quantum predictions are probabilistic', prompt:'In a quantum experiment, a state predicts probabilities for possible measurement outcomes. What does the probability describe?', difficulty:3, answerType:'choice', answer:'distribution of possible measurement outcomes', choices:['distribution of possible measurement outcomes','a hidden classical trajectory','a guaranteed single outcome','a measurement-independent path'], reasoningPrompts:['What does a quantum state allow you to predict?','Why is a probability distribution not simply a classical trajectory?'], reasoningCriteria:[
+    {id:'quantum-probability',description:'Treats quantum predictions as probabilities for measurement outcomes.',keywords:['probability','measurement outcomes','distribution','possible outcomes'],required:true,misconceptionCode:'quantum-classical-certainty'},
+    {id:'state-model',description:'Uses the quantum state as the object from which predictions are calculated.',keywords:['quantum state','state','prediction'],required:true,misconceptionCode:'quantum-wrong-state-model'}
   ] },
 ];
 
