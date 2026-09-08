@@ -1,0 +1,1 @@
+The learner is never classified by age alone. Uden discovers demonstrated ability, preserves the learner model, repairs prerequisites, and advances toward physics and engineering at the learner's demonstrated pace.
