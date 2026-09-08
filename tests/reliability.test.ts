@@ -10,8 +10,8 @@ test('repository transaction rolls back partial learner-state writes', () => {
     db.addMisconception(student, 'motion', 'temporary', 'should roll back');
     throw new Error('forced failure');
   }), /forced failure/);
-  const evidence = db.db.prepare('SELECT COUNT(*) AS count FROM evidence WHERE student_id=?').get(student) as { count:number };
-  assert.equal(evidence.count, 0);
+  const evidence = db.db.prepare('SELECT COUNT(*) AS count FROM evidence WHERE student_id=?').get(student) as { count:number } | undefined;
+  assert.equal(evidence?.count, 0);
   assert.equal(db.listOpenMisconceptions(student).length, 0);
   db.close();
 });
