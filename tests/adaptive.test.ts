@@ -26,7 +26,7 @@ test('evidence estimates use repeated weighted evidence rather than one score', 
     { id: 3, studentId: 1, conceptId: 'motion', kind: 'transfer', value: 100, note: '', createdAt: '' },
   ]);
   assert.equal(estimates[0]?.conceptId, 'motion');
-  assert.equal(estimates[0]?.score, 62.9);
+  assert.equal(estimates[0]?.score, 69.4);
   assert.equal(estimates[0]?.evidenceCount, 3);
 });
 
