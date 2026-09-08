@@ -6,6 +6,7 @@ export interface MasteryRecord { studentId:number; conceptId:string; score:numbe
 export interface MisconceptionRecord { id:number; studentId:number; conceptId:string; code:string; note:string; status:'open'|'resolved'; createdAt:string; resolvedAt:string|null; }
 export interface ResumeState { lessonId:string; problemId:string|null; step:number; updatedAt:string; }
 export interface ReviewRecord { conceptId:string; dueAt:string; intervalDays:number; repetitions:number; }
+export interface ProblemAttemptRecord { id:number; studentId:number; problemId:string; conceptId:string; answer:string; correct:boolean; reasoning:string; confidence:number|null; createdAt:string; }
 
 export class LearningStore {
   readonly db: DatabaseSync;
@@ -21,6 +22,7 @@ export class LearningStore {
       CREATE TABLE IF NOT EXISTS misconceptions (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, concept_id TEXT NOT NULL, code TEXT NOT NULL, note TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL, resolved_at TEXT, FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
       CREATE TABLE IF NOT EXISTS resume_state (student_id INTEGER PRIMARY KEY, lesson_id TEXT NOT NULL, problem_id TEXT, step INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
       CREATE TABLE IF NOT EXISTS reviews (student_id INTEGER NOT NULL, concept_id TEXT NOT NULL, due_at TEXT NOT NULL, interval_days INTEGER NOT NULL DEFAULT 1, repetitions INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(student_id, concept_id), FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
+      CREATE TABLE IF NOT EXISTS problem_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, problem_id TEXT NOT NULL, concept_id TEXT NOT NULL, answer TEXT NOT NULL, correct INTEGER NOT NULL, reasoning TEXT NOT NULL, confidence REAL, created_at TEXT NOT NULL, FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE);
     `);
   }
   close(): void { this.db.close(); }
@@ -57,6 +59,19 @@ export class LearningStore {
   }
   addEvidence(studentId:number, conceptId:string, kind:string, value:number|null, note:string): void {
     this.db.prepare('INSERT INTO evidence(student_id,concept_id,kind,value,note,created_at) VALUES(?,?,?,?,?,?)').run(studentId,conceptId,kind,value,note,new Date().toISOString());
+  }
+  recordProblemAttempt(studentId:number, problemId:string, conceptId:string, answer:string, correct:boolean, reasoning:string, confidence:number|null): ProblemAttemptRecord {
+    if (!reasoning.trim()) throw new Error('Reasoning is required for a problem attempt');
+    if (confidence !== null && (!Number.isFinite(confidence) || confidence < 0 || confidence > 100)) throw new Error('Confidence must be between 0 and 100');
+    const createdAt = new Date().toISOString();
+    const result = this.db.prepare('INSERT INTO problem_attempts(student_id,problem_id,concept_id,answer,correct,reasoning,confidence,created_at) VALUES(?,?,?,?,?,?,?,?)').run(studentId,problemId,conceptId,answer,correct ? 1 : 0,reasoning,confidence,createdAt);
+    return {id:Number(result.lastInsertRowid),studentId,problemId,conceptId,answer,correct,reasoning,confidence,createdAt};
+  }
+  listProblemAttempts(studentId:number, problemId?:string): ProblemAttemptRecord[] {
+    const rows = (problemId === undefined
+      ? this.db.prepare('SELECT id,student_id,problem_id,concept_id,answer,correct,reasoning,confidence,created_at FROM problem_attempts WHERE student_id = ? ORDER BY id').all(studentId)
+      : this.db.prepare('SELECT id,student_id,problem_id,concept_id,answer,correct,reasoning,confidence,created_at FROM problem_attempts WHERE student_id = ? AND problem_id = ? ORDER BY id').all(studentId,problemId)) as any[];
+    return rows.map(row => ({id:row.id,studentId:row.student_id,problemId:row.problem_id,conceptId:row.concept_id,answer:row.answer,correct:Boolean(row.correct),reasoning:row.reasoning,confidence:row.confidence,createdAt:row.created_at}));
   }
   addMisconception(studentId:number, conceptId:string, code:string, note:string): MisconceptionRecord {
     const result = this.db.prepare('INSERT INTO misconceptions(student_id,concept_id,code,note,status,created_at) VALUES(?,?,?,?,?,?)').run(studentId,conceptId,code,note,'open',new Date().toISOString());
