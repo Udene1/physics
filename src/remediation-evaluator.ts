@@ -7,7 +7,7 @@ export interface RemediationEvaluation { verdict:RemediationVerdict; checkpointS
 const CHECKPOINT_PATTERNS:Record<string,RegExp[]>={
   velocity:[/constant velocity/i,/velocity.*constant/i,/acceleration.*zero/i,/acceleration.*0/i],
   'net-force':[/net force.*zero/i,/net force.*0/i,/force.*zero/i,/force.*0/i],
-  causation:[/force.*acceleration/i,/acceleration.*change.*velocity/i,/not.*(require|need).*force.*(motion|move)/i,/motion.*not.*require.*force/i,/moving.*does not.*need.*force/i,/moving.*doesn.?t.*need.*force/i],
+  causation:[/force.*acceleration/i,/acceleration.*change.*velocity/i,/not.*(require|need).*force.*(motion|move)/i,/motion.*not.*require.*force/i,/moving.*does not.*need.*force/i,/moving.*doesn.?t.*need.*force/i,/not.*(?:needed|required).*to.*(?:sustain|maintain).*motion/i],
   equation:[/f\s*[_ ]?net\s*=\s*m\s*a/i,/f\s*=\s*m\s*a/i,/force.*mass.*acceleration/i],
   units:[/m\/s\^?2/i,/m\/s²/i,/m\/s/i,/newton|\bn\b/i,/joule|\bj\b/i],
   change:[/force.*change.*velocity/i,/force.*acceleration/i,/acceleration.*velocity/i],
@@ -32,7 +32,7 @@ export function evaluateRemediation(problem:RemediationProblem,reasoning:string,
   const findings=diagnoseReasoning(problem.conceptId,reasoning);
   const newMisconceptions=findings.filter(f=>f.code!==problem.misconceptionCode).map(f=>f.code);
   const sameMisconception=findings.some(f=>f.code===problem.misconceptionCode);
-  const answerEvaluation=evaluateAnswer(problem,answer);
+  const answerEvaluation=evaluateAnswer(problem,text);
   if(newMisconceptions.length)return{verdict:'new_misconception',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions,answerCorrect:answerEvaluation.correct};
   if(sameMisconception)return{verdict:'still_present',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:answerEvaluation.correct};
   if(answerEvaluation.correct&&score===1)return{verdict:'repaired',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:[],newMisconceptions:[],answerCorrect:true};
