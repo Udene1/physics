@@ -9,138 +9,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- MathJax for LaTeX Rendering -->
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>
-        window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true
-            },
-            options: {
-                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-            }
-        };
+        window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']], processEscapes: true }, options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] } };
     </script>
 </head>
 <body>
-    <!-- Background Decor -->
-    <div class="bg-glow"></div>
+<div class="bg-glow"></div>
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="sidebar-header"><div class="logo">⚛️</div><h1>Udene</h1></div>
+        <nav class="sidebar-nav">
+            <button class="nav-item" onclick="showSection('chat')"><span class="icon">💬</span> <span>Learning Chat</span></button>
+            <button class="nav-item" onclick="showSection('adaptive'); loadAdaptive()"><span class="icon">🧠</span> <span>Adaptive Journey</span></button>
+            <button class="nav-item" onclick="window.location.href='/sandbox'"><span class="icon">🕹️</span> <span>Logic Sandbox</span></button>
+            <button class="nav-item" onclick="loadReport()"><span class="icon">📊</span> <span>Performance</span></button>
+            <button class="nav-item" onclick="loadCurriculum()"><span class="icon">🧬</span> <span>Curriculum</span></button>
+        </nav>
+        <div class="sidebar-history-container"><h3>Recent History</h3><div id="history-sidebar-list" class="history-sidebar-list"></div></div>
+        <div class="sidebar-footer">
+            <div id="student-info"><strong>👤 <span id="current-nickname">{{ session.get('nickname', 'Guest') }}</span></strong><span>🔥 <span id="current-streak">{{ session.get('streak', 0) }}</span> day streak</span></div>
+            <div class="footer-links"><a href="{{ url_for('switch_profile') }}" class="footer-link">🔄 Switch</a><a href="{{ url_for('logout') }}" class="footer-link">Logout</a></div>
+            <div class="status-badge"><span class="status-dot"></span><span id="backend-info">{{ backend or 'Offline' }}</span></div>
+        </div>
+    </aside>
+    <main class="main-content">
+        <section id="chat-section" class="content-section active">
+            <div class="chat-header"><h2>Session: {{ session.get('nickname', 'Explorer') }}</h2><div class="header-actions"><button class="btn btn-secondary" onclick="clearChat()" style="background:rgba(255,255,255,0.05);color:#9ca3af;border:1px solid rgba(255,255,255,0.1);padding:.5rem 1rem;border-radius:8px;font-size:.8rem;cursor:pointer;">Clear Chat</button></div></div>
+            <div id="chat-messages" class="chat-messages"><div class="message assistant-message"><div class="message-label">🌟 UDENE COMPANION</div><div class="message-content">Kedu! I'm your AI Learning Companion. Ready to solve some Physics or Hardware challenges today? 🚀</div></div></div>
+            <div class="chat-input-container"><div class="quick-commands"><button onclick="setInput('/problems algebra')">Algebra</button><button onclick="setInput('/study kinematics')">Kinematics</button><button onclick="setInput('/curriculum')">Curriculum</button><button onclick="setInput('/report')">My Progress</button></div><form id="chat-form" class="chat-form"><input type="file" id="image-input" accept="image/*" style="display:none"><button type="button" id="photo-btn" onclick="document.getElementById('image-input').click()" style="background:rgba(255,255,255,.05);border:none;font-size:1.2rem;cursor:pointer;padding:0 10px;">📷</button><input type="text" id="user-input" placeholder="Enter command or message..." autocomplete="off"><button type="submit" id="send-btn">Send</button></form><div id="image-preview-container" style="display:none;padding:5px 10px;border-top:1px solid rgba(255,255,255,.05)"><span id="image-name" style="font-size:.8rem;color:var(--accent-blue)"></span><button onclick="clearImage()" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:.8rem">[✕]</button></div></div>
+        </section>
 
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="logo">⚛️</div>
-                <h1>Udene</h1>
-            </div>
-            
-            <nav class="sidebar-nav">
-                <button class="nav-item" onclick="showSection('chat')">
-                    <span class="icon">💬</span> <span>Learning Chat</span>
-                </button>
-                <button class="nav-item" onclick="window.location.href='/sandbox'">
-                    <span class="icon">🕹️</span> <span>Logic Sandbox</span>
-                </button>
-                <button class="nav-item" onclick="loadReport()">
-                    <span class="icon">📊</span> <span>Performance</span>
-                </button>
-                <button class="nav-item" onclick="loadCurriculum()">
-                    <span class="icon">🧬</span> <span>Curriculum</span>
-                </button>
-            </nav>
+        <section id="adaptive-section" class="content-section">
+            <div class="chat-header"><h2>Adaptive Journey</h2><button class="btn btn-secondary" onclick="showSection('chat')" style="background:var(--accent-blue);border:none;padding:.5rem 1rem;border-radius:8px;color:#fff;cursor:pointer;">Back to Chat</button></div>
+            <div id="adaptive-content" class="report-content markdown-body">Loading Vita's learning state...</div>
+        </section>
 
-            <div class="sidebar-history-container">
-                <h3>Recent History</h3>
-                <div id="history-sidebar-list" class="history-sidebar-list">
-                    <!-- History items will be injected here -->
-                </div>
-            </div>
-
-            <div class="sidebar-footer">
-                <div id="student-info">
-                    <strong>👤 <span id="current-nickname">{{ session.get('nickname', 'Guest') }}</span></strong>
-                    <span>🔥 <span id="current-streak">{{ session.get('streak', 0) }}</span> day streak</span>
-                </div>
-                <div class="footer-links">
-                    <a href="{{ url_for('switch_profile') }}" class="footer-link">🔄 Switch</a>
-                    <a href="{{ url_for('logout') }}" class="footer-link">Logout</a>
-                </div>
-                <div class="status-badge">
-                    <span class="status-dot"></span>
-                    <span id="backend-info">{{ backend or 'Offline' }}</span>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Chat Section -->
-            <section id="chat-section" class="content-section active">
-                <div class="chat-header">
-                    <h2>Session: {{ session.get('nickname', 'Explorer') }}</h2>
-                    <div class="header-actions">
-                        <button class="btn btn-secondary" onclick="clearChat()" style="background: rgba(255,255,255,0.05); color: #9ca3af; border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8rem; cursor: pointer;">Clear Chat</button>
-                    </div>
-                </div>
-                
-                <div id="chat-messages" class="chat-messages">
-                    <div class="message assistant-message">
-                        <div class="message-label">🌟 UDENE COMPANION</div>
-                        <div class="message-content">
-                            Kedu! I'm your AI Learning Companion. Ready to solve some Physics or Hardware challenges today? 🚀
-                        </div>
-                    </div>
-                </div>
-
-                <div class="chat-input-container">
-                    <div class="quick-commands">
-                        <button onclick="setInput('/problems algebra')">Algebra</button>
-                        <button onclick="setInput('/study kinematics')">Kinematics</button>
-                        <button onclick="setInput('/curriculum')">Curriculum</button>
-                        <button onclick="setInput('/report')">My Progress</button>
-                    </div>
-                    <form id="chat-form" class="chat-form">
-                        <input type="file" id="image-input" accept="image/*" style="display: none;">
-                        <button type="button" id="photo-btn" onclick="document.getElementById('image-input').click()" style="background: rgba(255,255,255,0.05); border: none; font-size: 1.2rem; cursor: pointer; padding: 0 10px;">📷</button>
-                        <input type="text" id="user-input" placeholder="Enter command or message..." autocomplete="off">
-                        <button type="submit" id="send-btn">Send</button>
-                    </form>
-                    <div id="image-preview-container" style="display: none; padding: 5px 10px; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <span id="image-name" style="font-size: 0.8rem; color: var(--accent-blue);"></span>
-                        <button onclick="clearImage()" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem;">[✕]</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Report Section -->
-            <section id="report-section" class="content-section">
-                <div class="chat-header">
-                    <h2>Your Performance Log</h2>
-                    <div class="header-actions">
-                        <a href="/export/report" class="btn btn-secondary" style="background: var(--accent-green); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer; text-decoration:none; display:inline-block; margin-right: 10px;">📄 Download PDF</a>
-                        <button class="btn btn-secondary" onclick="showSection('chat')" style="background: var(--accent-blue); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer;">Back to Chat</button>
-                    </div>
-                </div>
-                <div id="report-content" class="report-content markdown-body">
-                    Fetching your data...
-                </div>
-            </section>
-
-             <!-- Curriculum Section -->
-             <section id="curriculum-section" class="content-section">
-                <div class="chat-header">
-                    <h2>STEM Journey Map</h2>
-                    <button class="btn btn-secondary" onclick="showSection('chat')" style="background: var(--accent-blue); border:none; padding: 0.5rem 1rem; border-radius: 8px; color:#fff; cursor:pointer;">Back to Chat</button>
-                </div>
-                <div id="curriculum-content" class="report-content markdown-body">
-                    Loading curriculum...
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+        <section id="report-section" class="content-section">
+            <div class="chat-header"><h2>Your Performance Log</h2><div class="header-actions"><a href="/export/report" class="btn btn-secondary" style="background:var(--accent-green);border:none;padding:.5rem 1rem;border-radius:8px;color:#fff;text-decoration:none;display:inline-block;margin-right:10px;">📄 Download PDF</a><button class="btn btn-secondary" onclick="showSection('chat')" style="background:var(--accent-blue);border:none;padding:.5rem 1rem;border-radius:8px;color:#fff;cursor:pointer;">Back to Chat</button></div></div>
+            <div id="report-content" class="report-content markdown-body">Fetching your data...</div>
+        </section>
+        <section id="curriculum-section" class="content-section">
+            <div class="chat-header"><h2>STEM Journey Map</h2><button class="btn btn-secondary" onclick="showSection('chat')" style="background:var(--accent-blue);border:none;padding:.5rem 1rem;border-radius:8px;color:#fff;cursor:pointer;">Back to Chat</button></div>
+            <div id="curriculum-content" class="report-content markdown-body">Loading curriculum...</div>
+        </section>
+    </main>
+</div>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 </body>
 </html>
