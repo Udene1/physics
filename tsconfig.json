@@ -13,7 +13,7 @@
     "outDir": "dist",
     "declaration": false,
     "sourceMap": true,
-    "noEmit": false,
-    "include": ["src/**/*.ts"]
-  }
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"]
 }
