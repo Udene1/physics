@@ -30,6 +30,11 @@ def _request(path, student, method="GET", payload=None):
 def snapshot(student): return _request("/v1/snapshot", student)
 def intervention(student): return _request("/v1/intervention", student)
 def timeline(student): return _request("/v1/timeline", student)
+def practice(student, problem_id=None):
+    path = "/v1/practice"
+    if problem_id:
+        path += f"?problemId={quote(problem_id)}"
+    return _request(path, student)
 
 def submit_attempt(student, concept_id, correct, reasoning, answer=None, problem_id=None, confidence=None, hint_used=False, duration_seconds=None, misconception_codes=None):
     return _request("/v1/attempt", student, "POST", {
@@ -37,6 +42,12 @@ def submit_attempt(student, concept_id, correct, reasoning, answer=None, problem
         "answer": answer, "problemId": problem_id, "confidence": confidence,
         "hintUsed": hint_used, "durationSeconds": duration_seconds,
         "misconceptionCodes": misconception_codes,
+    })
+
+def submit_practice(student, problem_id, reasoning, answer, confidence=None, hint_used=False, duration_seconds=None):
+    return _request("/v1/practice", student, "POST", {
+        "problemId": problem_id, "reasoning": reasoning, "answer": answer,
+        "confidence": confidence, "hintUsed": hint_used, "durationSeconds": duration_seconds,
     })
 
 def submit_remediation(student, intervention_id, reasoning, answer, confidence=None, hint_used=False, duration_seconds=None):
