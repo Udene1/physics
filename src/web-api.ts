@@ -4,6 +4,8 @@ import { LearningStore } from './store.js';
 import { getRemediationProblem } from './interventions.js';
 import { getReviewProblemForConcept } from './reviews.js';
 import { getConcept, validateCurriculum } from './curriculum.js';
+import { getPracticeProblem, getPracticeProblemForConcept } from './practice.js';
+import { evaluatePractice } from './practice-evaluator.js';
 
 validateCurriculum();
 const store = new LearningStore();
@@ -32,9 +34,26 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
     if (req.method === 'GET' && url.pathname === '/health') result = json(200, { status: 'ok', service: 'vita-adaptive-engine' });
     else if (req.method === 'GET' && url.pathname === '/v1/snapshot') { const id = student(url.searchParams.get('student')); result = json(200, engine.start(id)); }
     else if (req.method === 'GET' && url.pathname === '/v1/timeline') { const id = student(url.searchParams.get('student')); result = json(200, { events: engine.timeline(id) }); }
-    else if (req.method === 'GET' && url.pathname === '/v1/intervention') {
-      const id = student(url.searchParams.get('student')); const intervention = engine.nextIntervention(id);
-      result = json(200, intervention ? { intervention, problem: getRemediationProblem(intervention.problemId), snapshot: engine.snapshot(id) } : { intervention: null, snapshot: engine.snapshot(id) });
+    else if (req.method === 'GET' && url.pathname === '/v1/practice') {
+      const id = student(url.searchParams.get('student')); const snapshot = engine.start(id);
+      const requested = url.searchParams.get('problemId');
+      const problem = requested ? getPracticeProblem(requested) : getPracticeProblemForConcept(snapshot.currentConcept ?? snapshot.nextConcept ?? 'forces');
+      result = json(200, { problem: problem ?? null, snapshot });
+    } else if (req.method === 'POST' && url.pathname === '/v1/practice') {
+      const body = await readBody(req); const id = student(typeof body.student === 'string' ? body.student : null);
+      if (typeof body.problemId !== 'string') throw new Error('problemId is required');
+      const problem = getPracticeProblem(body.problemId);
+      if (typeof body.reasoning !== 'string' || typeof body.answer !== 'string') throw new Error('reasoning and answer are required');
+      const evaluation = evaluatePractice(problem, body.reasoning, body.answer);
+      const snapshot = engine.recordStructuredAttempt(id, problem.conceptId, {
+        correct: evaluation.correct,
+        reasoning: body.reasoning,
+        problemId: problem.id,
+        confidence: typeof body.confidence === 'number' ? body.confidence : null,
+        hintUsed: body.hintUsed === true,
+        durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
+      });
+      result = json(200, { evaluation, snapshot });
     } else if (req.method === 'POST' && url.pathname === '/v1/attempt') {
       const body = await readBody(req); const id = student(typeof body.student === 'string' ? body.student : null);
       if (typeof body.conceptId !== 'string') throw new Error('conceptId is required');
@@ -55,6 +74,9 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
       if (misconceptionCodes !== undefined) attempt.misconceptionCodes = misconceptionCodes;
       if (typeof body.misconceptionSeverity === 'number') attempt.misconceptionSeverity = body.misconceptionSeverity;
       result = json(200, engine.recordStructuredAttempt(id, body.conceptId, attempt));
+    } else if (req.method === 'GET' && url.pathname === '/v1/intervention') {
+      const id = student(url.searchParams.get('student')); const intervention = engine.nextIntervention(id);
+      result = json(200, intervention ? { intervention, problem: getRemediationProblem(intervention.problemId), snapshot: engine.snapshot(id) } : { intervention: null, snapshot: engine.snapshot(id) });
     } else if (req.method === 'POST' && url.pathname === '/v1/remediation') {
       const body = await readBody(req); const id = student(typeof body.student === 'string' ? body.student : null);
       const interventionId = Number(body.interventionId);
