@@ -23,10 +23,18 @@ const LEGACY_CRITERIA:Record<string,readonly Criterion[]>={
 'ratio-review-1':[{id:'distance',pattern:/\b2\s*km\b/i}],
 };
 
-export function evaluateAnswer(problem:RemediationProblem,answer:string):AnswerEvaluation {
+/**
+ * Evaluate the submitted answer while allowing conceptual criteria to use the
+ * learner's reasoning. Numeric criteria intentionally stay scoped to `answer`
+ * so givens, intermediate values, and unrelated numbers in reasoning cannot
+ * accidentally satisfy the final answer.
+ */
+export function evaluateAnswer(problem:RemediationProblem,answer:string,reasoning=''):AnswerEvaluation {
   const spec=problem.answerSpec ?? getProblemAnswerSpec(problem.id);
   if(spec){
-    const matched=spec.criteria.filter(c=>evaluateCriterion(c,answer)).map(c=>c.id);
+    const reasoningText=reasoning.trim();
+    const combined=reasoningText?`${reasoningText}\n${answer}`.trim():answer;
+    const matched=spec.criteria.filter(c=>evaluateCriterion(c,c.kind==='numeric'?answer:combined)).map(c=>c.id);
     const missing=spec.criteria.filter(c=>!matched.includes(c.id)).map(c=>c.id);
     return {correct:missing.length===0,matchedCriteria:matched,missingCriteria:missing};
   }
