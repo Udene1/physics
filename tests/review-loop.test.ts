@@ -8,7 +8,7 @@ test('a due review evaluates reasoning and schedules the next retrieval from dem
   const student = store.ensureStudent('Retrieval learner');
   const engine = new LearningEngine(store);
   engine.start(student);
-  const reference = new Date(Date.now() - 86400000);
+  const reference = new Date(Date.now() - 3 * 86400000);
   store.scheduleReview(student, 'energy', 1, reference);
 
   const problem = engine.getReviewProblem(student)!;
@@ -32,7 +32,7 @@ test('a failed review reopens the misconception and routes the learner back to t
   const student = store.ensureStudent('Recovery learner');
   const engine = new LearningEngine(store);
   engine.start(student);
-  const reference = new Date(Date.now() - 86400000);
+  const reference = new Date(Date.now() - 3 * 86400000);
   store.scheduleReview(student, 'energy', 1, reference);
 
   const result = engine.submitReviewAttempt(student, {
