@@ -44,7 +44,8 @@ export function evaluateRemediation(problem:RemediationProblem,reasoning:string,
   const findings=diagnoseReasoning(problem.conceptId,reasoning);
   const newMisconceptions=findings.filter(f=>f.code!==problem.misconceptionCode).map(f=>f.code);
   const sameMisconception=findings.some(f=>f.code===problem.misconceptionCode);
-  const evaluatedCorrect=answerCorrect??evaluateAnswer(problem,answer).correct;
+  const combinedEvaluation=evaluateAnswer(problem,answer,reasoning);
+  const evaluatedCorrect=combinedEvaluation.correct||answerCorrect===true;
   if(newMisconceptions.length)return{verdict:'new_misconception',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions,answerCorrect:evaluatedCorrect};
   if(sameMisconception)return{verdict:'still_present',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:evaluatedCorrect};
   if(evaluatedCorrect&&score===1)return{verdict:'repaired',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:[],newMisconceptions:[],answerCorrect:true};
