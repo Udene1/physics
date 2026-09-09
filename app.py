@@ -25,7 +25,7 @@ if sys.platform == "win32":
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file
 from functools import wraps
 from main import init_agents, handle_message
-from adaptive_bridge import snapshot as adaptive_snapshot, intervention as adaptive_intervention, timeline as adaptive_timeline, submit_attempt as adaptive_submit_attempt, submit_remediation as adaptive_submit_remediation, review as adaptive_review, submit_review as adaptive_submit_review
+from adaptive_bridge import snapshot as adaptive_snapshot, intervention as adaptive_intervention, timeline as adaptive_timeline, practice as adaptive_practice, submit_practice as adaptive_submit_practice, submit_attempt as adaptive_submit_attempt, submit_remediation as adaptive_submit_remediation, review as adaptive_review, submit_review as adaptive_submit_review
 
 try:
     from tools.pdf_generator import generate_student_report
@@ -152,6 +152,30 @@ def adaptive_timeline_route():
         return jsonify(adaptive_timeline(session['nickname']))
     except Exception as e:
         return jsonify({"error": str(e)}), 503
+
+
+@app.route('/adaptive/practice')
+@login_required
+def adaptive_practice_route():
+    try:
+        problem_id = request.args.get('problemId')
+        return jsonify(adaptive_practice(session['nickname'], problem_id))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
+
+
+@app.route('/adaptive/practice', methods=['POST'])
+@login_required
+def adaptive_practice_submit_route():
+    data = request.json or {}
+    if not isinstance(data.get('problemId'), str) or not data['problemId'].strip():
+        return jsonify({"error": "problemId is required"}), 400
+    if not isinstance(data.get('reasoning'), str) or not isinstance(data.get('answer'), str):
+        return jsonify({"error": "reasoning and answer are required"}), 400
+    try:
+        return jsonify(adaptive_submit_practice(session['nickname'], data['problemId'], data['reasoning'], data['answer'], data.get('confidence'), bool(data.get('hintUsed')), data.get('durationSeconds')))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route('/adaptive/attempt', methods=['POST'])
