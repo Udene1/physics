@@ -6,7 +6,7 @@ export interface RemediationEvaluation { verdict:RemediationVerdict; checkpointS
 
 const CHECKPOINT_PATTERNS:Record<string,RegExp[]>={
   velocity:[/constant velocity/i,/velocity.*constant/i,/acceleration.*zero/i,/acceleration.*0/i],
-  'net-force':[/net force.*zero/i,/net force.*0/i,/force.*zero/i,/force.*0/i],
+  'net-force':[/net force.*zero/i,/net force.*0/i,/zero.*net force/i,/force.*zero/i,/force.*0/i],
   causation:[
     /force.*acceleration/i,
     /acceleration.*change.*velocity/i,
