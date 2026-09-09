@@ -1,8 +1,9 @@
 import { chooseNextPhysicsConcept, getConcept, missingRequirements } from './curriculum.js';
-import { LearningStore } from './store.js';
+import { EvidenceInput, LearningStore, MisconceptionRecord, ResumeState } from './store.js';
 
 export type LearningStatus = 'new' | 'diagnostic' | 'learning';
-export interface LearnerSnapshot { studentId:number; status:LearningStatus; currentConcept:string|null; nextConcept:string|null; mastery:Record<string,number>; missingRequirements:string[]; }
+export interface LearnerSnapshot { studentId:number; status:LearningStatus; currentConcept:string|null; nextConcept:string|null; mastery:Record<string,number>; missingRequirements:string[]; activeMisconceptions:MisconceptionRecord[]; resume:ResumeState|undefined; }
+export interface AttemptInput extends EvidenceInput { correct:boolean; misconceptionCodes?:string[]; misconceptionSeverity?:number; }
 
 export class LearningEngine {
   constructor(private readonly store: LearningStore) {}
@@ -16,7 +17,7 @@ export class LearningEngine {
     const mastery = this.store.getMastery(studentId);
     const next = chooseNextPhysicsConcept(mastery);
     const current = session?.currentConcept ?? null;
-    return { studentId, status:(session?.status ?? 'new') as LearningStatus, currentConcept:current, nextConcept:next?.id ?? null, mastery, missingRequirements:next ? missingRequirements(mastery,next.id) : [] };
+    return { studentId, status:(session?.status ?? 'new') as LearningStatus, currentConcept:current, nextConcept:next?.id ?? null, mastery, missingRequirements:next ? missingRequirements(mastery,next.id) : [], activeMisconceptions:this.store.listMisconceptions(studentId).filter(m => m.status === 'active'), resume:this.store.getResume(studentId) };
   }
   setCurrent(studentId:number, conceptId:string): void {
     getConcept(conceptId);
@@ -26,10 +27,22 @@ export class LearningEngine {
     this.store.saveSession(studentId, 'learning', conceptId, 0);
   }
   recordAttempt(studentId:number, conceptId:string, correct:boolean, note=''): LearnerSnapshot {
+    return this.recordStructuredAttempt(studentId, conceptId, {correct,note});
+  }
+  recordStructuredAttempt(studentId:number, conceptId:string, input:AttemptInput): LearnerSnapshot {
     getConcept(conceptId);
-    this.store.recordMastery(studentId, conceptId, correct);
-    this.store.addEvidence(studentId, conceptId, 'attempt', correct ? 1 : 0, note);
+    const evidenceId = this.store.addEvidence(studentId, conceptId, {kind:'attempt', value:input.correct ? 1 : 0, note:input.note, lessonId:input.lessonId, problemId:input.problemId, reasoning:input.reasoning, confidence:input.confidence, hintUsed:input.hintUsed, durationSeconds:input.durationSeconds});
+    this.store.recordMastery(studentId, conceptId, input.correct);
+    for (const code of input.misconceptionCodes ?? []) this.store.upsertMisconception(studentId, conceptId, code, input.misconceptionSeverity ?? 1, evidenceId);
     this.store.saveSession(studentId, 'learning', conceptId, 0);
+    return this.snapshot(studentId);
+  }
+  saveResume(studentId:number, lessonId:string|null, problemId:string|null, step:number, state:unknown = null): LearnerSnapshot {
+    this.store.saveResume(studentId,lessonId,problemId,step,state);
+    return this.snapshot(studentId);
+  }
+  resolveMisconception(studentId:number, misconceptionId:number): LearnerSnapshot {
+    this.store.resolveMisconception(studentId,misconceptionId);
     return this.snapshot(studentId);
   }
   placeByDemonstratedMastery(studentId:number, scores:Record<string,number>): LearnerSnapshot {
