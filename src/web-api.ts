@@ -44,7 +44,6 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
       result = json(200, engine.recordStructuredAttempt(id, body.conceptId, {
         correct: body.correct,
         reasoning: body.reasoning,
-        answer: typeof body.answer === 'string' ? body.answer : undefined,
         problemId: typeof body.problemId === 'string' ? body.problemId : null,
         confidence: typeof body.confidence === 'number' ? body.confidence : null,
         hintUsed: body.hintUsed === true,
