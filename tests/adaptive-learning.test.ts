@@ -98,3 +98,33 @@ test('strong demonstrated repair creates performance-based spaced review', () =>
   assert.equal(reviews[0]?.intervalDays, 1);
   store.close();
 });
+
+test('a failed review reopens the diagnosed misconception and queues fresh discrimination', () => {
+  const store = new LearningStore(':memory:');
+  const student = store.ensureStudent('Retention learner');
+  const engine = new LearningEngine(store);
+  engine.start(student);
+  engine.recordStructuredAttempt(student, 'forces', { correct:false, reasoning:'Moving means a force is needed.' });
+  const discrimination = engine.nextIntervention(student)!;
+  engine.submitRemediationAttempt(student, discrimination.id, {
+    reasoning:'Constant velocity means acceleration is zero. F_net = ma, so net force is zero. Force changes velocity through acceleration, not by sustaining motion.',
+    answer:'0 N',
+  });
+  const transfer = engine.nextIntervention(student)!;
+  engine.submitRemediationAttempt(student, transfer.id, {
+    reasoning:'F_net = ma gives a = 2 m/s² east. Then v = u + at = 7 m/s east. The force changes velocity through acceleration.',
+    answer:'2 m/s² east; 7 m/s east',
+  });
+
+  const due = store.listDueReviews(student, new Date(Date.now() + 2 * 86400000).toISOString());
+  assert.equal(due.length, 1);
+  const review = engine.submitReviewAttempt(student, {
+    reasoning:'The cart is moving, so it needs a force to keep moving.',
+    answer:'17 N east',
+  });
+
+  assert.equal(review.outcome, 'misconception_reopened');
+  assert.equal(review.snapshot.activeMisconceptions.some(m => m.code === 'force_causes_motion'), true);
+  assert.equal(review.snapshot.interventionQueue.some(i => i.stage === 'discrimination'), true);
+  store.close();
+});
