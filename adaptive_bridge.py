@@ -31,6 +31,14 @@ def snapshot(student): return _request("/v1/snapshot", student)
 def intervention(student): return _request("/v1/intervention", student)
 def timeline(student): return _request("/v1/timeline", student)
 
+def submit_attempt(student, concept_id, correct, reasoning, answer=None, problem_id=None, confidence=None, hint_used=False, duration_seconds=None, misconception_codes=None):
+    return _request("/v1/attempt", student, "POST", {
+        "conceptId": concept_id, "correct": correct, "reasoning": reasoning,
+        "answer": answer, "problemId": problem_id, "confidence": confidence,
+        "hintUsed": hint_used, "durationSeconds": duration_seconds,
+        "misconceptionCodes": misconception_codes,
+    })
+
 def submit_remediation(student, intervention_id, reasoning, answer, confidence=None, hint_used=False, duration_seconds=None):
     return _request("/v1/remediation", student, "POST", {"interventionId": intervention_id, "reasoning": reasoning, "answer": answer, "confidence": confidence, "hintUsed": hint_used, "durationSeconds": duration_seconds})
 
