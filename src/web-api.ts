@@ -41,16 +41,20 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
       getConcept(body.conceptId);
       if (typeof body.reasoning !== 'string') throw new Error('reasoning is required');
       if (typeof body.correct !== 'boolean') throw new Error('correct must be a boolean');
-      result = json(200, engine.recordStructuredAttempt(id, body.conceptId, {
+      const attempt: Parameters<LearningEngine['recordStructuredAttempt']>[2] = {
         correct: body.correct,
         reasoning: body.reasoning,
         problemId: typeof body.problemId === 'string' ? body.problemId : null,
         confidence: typeof body.confidence === 'number' ? body.confidence : null,
         hintUsed: body.hintUsed === true,
         durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
-        misconceptionCodes: Array.isArray(body.misconceptionCodes) ? body.misconceptionCodes.filter((x): x is string => typeof x === 'string') : undefined,
-        misconceptionSeverity: typeof body.misconceptionSeverity === 'number' ? body.misconceptionSeverity : undefined,
-      }));
+      };
+      const misconceptionCodes = Array.isArray(body.misconceptionCodes)
+        ? body.misconceptionCodes.filter((x): x is string => typeof x === 'string')
+        : undefined;
+      if (misconceptionCodes !== undefined) attempt.misconceptionCodes = misconceptionCodes;
+      if (typeof body.misconceptionSeverity === 'number') attempt.misconceptionSeverity = body.misconceptionSeverity;
+      result = json(200, engine.recordStructuredAttempt(id, body.conceptId, attempt));
     } else if (req.method === 'POST' && url.pathname === '/v1/remediation') {
       const body = await readBody(req); const id = student(typeof body.student === 'string' ? body.student : null);
       const interventionId = Number(body.interventionId);
@@ -74,4 +78,5 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
 const server = createServer((req, res) => { void route(req, res); });
 server.listen(port, '127.0.0.1', () => console.log(`Vita adaptive API listening on 127.0.0.1:${port}`));
 const shutdown = () => { server.close(() => { store.close(); process.exit(0); }); };
-process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
