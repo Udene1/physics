@@ -35,7 +35,7 @@ const CHECKPOINT_PATTERNS:Record<string,RegExp[]>={
 
 function checkpointMatched(id:string,text:string):boolean{return(CHECKPOINT_PATTERNS[id]??[]).some(p=>p.test(text));}
 
-export function evaluateRemediation(problem:RemediationProblem,reasoning:string,answer:string,_legacyCorrect?:boolean):RemediationEvaluation{
+export function evaluateRemediation(problem:RemediationProblem,reasoning:string,answer:string,answerCorrect?:boolean):RemediationEvaluation{
   const text=`${reasoning}\n${answer}`.trim();
   if(!text)return{verdict:'insufficient_evidence',checkpointScore:0,matchedCheckpoints:[],missingCheckpoints:problem.checkpoints.map(c=>c.id),newMisconceptions:[],answerCorrect:false};
   const matched=problem.checkpoints.filter(c=>checkpointMatched(c.id,text)).map(c=>c.id);
@@ -44,9 +44,9 @@ export function evaluateRemediation(problem:RemediationProblem,reasoning:string,
   const findings=diagnoseReasoning(problem.conceptId,reasoning);
   const newMisconceptions=findings.filter(f=>f.code!==problem.misconceptionCode).map(f=>f.code);
   const sameMisconception=findings.some(f=>f.code===problem.misconceptionCode);
-  const answerEvaluation=evaluateAnswer(problem,text);
-  if(newMisconceptions.length)return{verdict:'new_misconception',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions,answerCorrect:answerEvaluation.correct};
-  if(sameMisconception)return{verdict:'still_present',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:answerEvaluation.correct};
-  if(answerEvaluation.correct&&score===1)return{verdict:'repaired',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:[],newMisconceptions:[],answerCorrect:true};
-  return{verdict:'insufficient_evidence',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:answerEvaluation.correct};
+  const evaluatedCorrect=answerCorrect??evaluateAnswer(problem,answer).correct;
+  if(newMisconceptions.length)return{verdict:'new_misconception',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions,answerCorrect:evaluatedCorrect};
+  if(sameMisconception)return{verdict:'still_present',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:evaluatedCorrect};
+  if(evaluatedCorrect&&score===1)return{verdict:'repaired',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:[],newMisconceptions:[],answerCorrect:true};
+  return{verdict:'insufficient_evidence',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:evaluatedCorrect};
 }
