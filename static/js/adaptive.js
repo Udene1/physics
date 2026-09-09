@@ -23,8 +23,9 @@ async function loadAdaptive() {
         let html = `<div style="display:grid;gap:1rem;max-width:900px">`;
         html += `<div class="message assistant-message"><div class="message-label">🧠 VITA</div><div class="message-content"><strong>You are here:</strong> ${adaptiveEscape(journey.location || data.currentConcept || 'learning')}<br><strong>Next:</strong> ${adaptiveEscape(data.nextConcept || 'No new concept yet')}</div></div>`;
         if (message) html += `<div class="message assistant-message"><div class="message-label">🎯 TARGETED REPAIR</div><div class="message-content"><strong>Blocking you:</strong> ${adaptiveEscape(message.blocking)}<br><strong>Vita noticed:</strong> ${adaptiveEscape(message.noticed)}<br><strong>Why repair this:</strong> ${adaptiveEscape(message.why)}</div></div>`;
+        if (!selected) html += `<div class="message assistant-message"><div class="message-label">📘 PRACTICE</div><div class="message-content"><p>Try a real structured problem. Vita will inspect your reasoning, answer, units and physical model.</p><button class="btn btn-primary" onclick="loadAdaptivePractice()">Start practice</button></div></div>`;
         if (selected) {
-            html += `<div class="message assistant-message"><div class="message-label">🧪 ${adaptiveEscape(selected.stage).toUpperCase()}</div><div class="message-content"><h3>${adaptiveEscape(selected.problemId)}</h3><p>${adaptiveEscape(data.intervention?.strategy || selected.strategy)}</p><button class="btn btn-primary" onclick="loadAdaptiveProblem(${selected.id})">Open targeted problem</button></div></div>`;
+            html += `<div class="message assistant-message"><div class="message-label">🧪 ${adaptiveEscape(selected.stage).toUpperCase()}</div><div class="message-content"><h3>${adaptiveEscape(selected.problemId)}</h3><p>${adaptiveEscape(selected.strategy)}</p><button class="btn btn-primary" onclick="loadAdaptiveProblem(${selected.id})">Open targeted problem</button></div></div>`;
         }
         if (misconceptions.length) html += `<div class="message assistant-message"><div class="message-label">🔎 ACTIVE EVIDENCE</div><div class="message-content">${misconceptions.map(m => `<div><strong>${adaptiveEscape(m.code)}</strong> · severity ${m.severity} · ${m.occurrences} signal(s)</div>`).join('')}</div></div>`;
         if (data.demonstratedRepair) html += `<div class="message assistant-message"><div class="message-label">✅ DEMONSTRATED REPAIR</div><div class="message-content">${adaptiveEscape(data.demonstratedRepair)}</div></div>`;
@@ -33,6 +34,34 @@ async function loadAdaptive() {
         container.innerHTML = html;
     } catch (error) {
         container.innerHTML = `<p class="error">Adaptive engine unavailable: ${adaptiveEscape(error.message)}</p>`;
+    }
+}
+
+async function loadAdaptivePractice() {
+    const container = document.getElementById('adaptive-problem');
+    if (!container) return;
+    try {
+        const data = await adaptiveJson('/adaptive/practice');
+        const p = data.problem;
+        if (!p) throw new Error('No practice problem is available for the current concept.');
+        container.innerHTML = `<div class="message assistant-message"><div class="message-label">📘 PRACTICE · ${adaptiveEscape(p.title)}</div><div class="message-content"><h3>${adaptiveEscape(p.prompt)}</h3><p><strong>Givens:</strong> ${p.givens.map(adaptiveEscape).join(' · ')}</p><textarea id="practice-reasoning" rows="7" placeholder="Show your reasoning, equations, assumptions and units..." style="width:100%;margin:.5rem 0;padding:.75rem"></textarea><input id="practice-answer" placeholder="Final answer" style="width:100%;margin:.5rem 0;padding:.75rem"><button class="btn btn-primary" onclick="submitAdaptivePractice('${adaptiveEscape(p.id)}')">Submit attempt</button></div></div>`;
+    } catch (error) {
+        container.innerHTML = `<p class="error">${adaptiveEscape(error.message)}</p>`;
+    }
+}
+
+async function submitAdaptivePractice(problemId) {
+    const reasoning = document.getElementById('practice-reasoning')?.value.trim();
+    const answer = document.getElementById('practice-answer')?.value.trim();
+    if (!reasoning || !answer) return;
+    try {
+        const data = await adaptiveJson('/adaptive/practice', { method: 'POST', body: JSON.stringify({ problemId, reasoning, answer }) });
+        const e = data.evaluation || {};
+        const container = document.getElementById('adaptive-content');
+        const repair = data.snapshot?.selectedIntervention;
+        container.innerHTML = `<div class="message assistant-message"><div class="message-label">${e.verdict === 'correct' ? '✅ DEMONSTRATED' : e.verdict === 'misconception_detected' ? '🎯 VITA FOUND A PATTERN' : '🔎 MORE EVIDENCE NEEDED'}</div><div class="message-content"><strong>Result:</strong> ${adaptiveEscape(e.verdict)}<br><strong>Reasoning checkpoints:</strong> ${adaptiveEscape(e.checkpointScore)}<br>${(e.missingCheckpoints || []).length ? `<strong>Missing:</strong> ${e.missingCheckpoints.map(adaptiveEscape).join(', ')}` : 'All reasoning checkpoints were demonstrated.'}${(e.misconceptions || []).length ? `<br><strong>Pattern detected:</strong> ${e.misconceptions.map(adaptiveEscape).join(', ')}` : ''}${repair ? `<br><br><strong>Next:</strong> Vita has queued targeted repair for the detected pattern.` : ''}<br><button class="btn btn-primary" onclick="loadAdaptive()">Continue journey</button></div></div>`;
+    } catch (error) {
+        document.getElementById('adaptive-content').insertAdjacentHTML('beforeend', `<p class="error">${adaptiveEscape(error.message)}</p>`);
     }
 }
 
