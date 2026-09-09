@@ -10,16 +10,9 @@ test('a due review evaluates reasoning and schedules the next retrieval from dem
   engine.start(student);
   const reference = new Date(Date.now() - 3 * 86400000);
   store.scheduleReview(student, 'energy', 1, reference);
-
   const problem = engine.getReviewProblem(student)!;
   assert.equal(problem.id, 'energy-review-1');
-
-  const result = engine.submitReviewAttempt(student, {
-    correct: true,
-    reasoning: 'Force is an interaction measured in N. Work transfers energy through displacement. W = Fd = 20(2.5) = 50 J. N and J are different units.',
-    answer: '50 J',
-  });
-
+  const result = engine.submitReviewAttempt(student, { correct: true, reasoning: 'Force is an interaction measured in N. Work transfers energy through displacement. W = Fd = 20(2.5) = 50 J. N and J are different units.', answer: '50 J' });
   assert.equal(result.outcome, 'retained');
   assert.equal(result.checkpointScore, 1);
   assert.equal(result.snapshot.dueReviews.length, 0);
@@ -34,13 +27,7 @@ test('a failed review reopens the misconception and routes the learner back to t
   engine.start(student);
   const reference = new Date(Date.now() - 3 * 86400000);
   store.scheduleReview(student, 'energy', 1, reference);
-
-  const result = engine.submitReviewAttempt(student, {
-    correct: false,
-    reasoning: 'The force is 50 J because work and force are the same thing.',
-    answer: '50 J',
-  });
-
+  const result = engine.submitReviewAttempt(student, { correct: false, reasoning: 'The force is 50 J because work and force are the same thing.', answer: '50 J' });
   assert.equal(result.outcome, 'misconception_reopened');
   assert.equal(result.snapshot.activeMisconceptions[0]?.code, 'energy_as_force');
   assert.equal(result.snapshot.selectedIntervention?.stage, 'discrimination');
