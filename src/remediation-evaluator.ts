@@ -1,7 +1,8 @@
 import { diagnoseReasoning } from './diagnostics.js';
 import type { RemediationProblem, RemediationVerdict } from './interventions.js';
+import { evaluateAnswer } from './answer-evaluator.js';
 
-export interface RemediationEvaluation { verdict:RemediationVerdict; checkpointScore:number; matchedCheckpoints:string[]; missingCheckpoints:string[]; newMisconceptions:string[]; }
+export interface RemediationEvaluation { verdict:RemediationVerdict; checkpointScore:number; matchedCheckpoints:string[]; missingCheckpoints:string[]; newMisconceptions:string[]; answerCorrect:boolean; }
 
 const CHECKPOINT_PATTERNS:Record<string,RegExp[]> = {
   velocity:[/constant velocity/i,/velocity.*constant/i,/acceleration.*zero/i,/acceleration.*0/i],
@@ -22,17 +23,18 @@ const CHECKPOINT_PATTERNS:Record<string,RegExp[]> = {
 
 function checkpointMatched(id:string,text:string):boolean { return (CHECKPOINT_PATTERNS[id]??[]).some(p=>p.test(text)); }
 
-export function evaluateRemediation(problem:RemediationProblem, reasoning:string, answer:string, correct:boolean):RemediationEvaluation {
+export function evaluateRemediation(problem:RemediationProblem, reasoning:string, answer:string, _legacyCorrect?:boolean):RemediationEvaluation {
   const text=`${reasoning}\n${answer}`.trim();
-  if(!text) return {verdict:'insufficient_evidence',checkpointScore:0,matchedCheckpoints:[],missingCheckpoints:problem.checkpoints.map(c=>c.id),newMisconceptions:[]};
+  if(!text) return {verdict:'insufficient_evidence',checkpointScore:0,matchedCheckpoints:[],missingCheckpoints:problem.checkpoints.map(c=>c.id),newMisconceptions:[],answerCorrect:false};
   const matched=problem.checkpoints.filter(c=>checkpointMatched(c.id,text)).map(c=>c.id);
   const missing=problem.checkpoints.filter(c=>!matched.includes(c.id)).map(c=>c.id);
   const score=problem.checkpoints.length===0?0:matched.length/problem.checkpoints.length;
   const findings=diagnoseReasoning(problem.conceptId,reasoning);
   const newMisconceptions=findings.filter(f=>f.code!==problem.misconceptionCode).map(f=>f.code);
   const sameMisconception=findings.some(f=>f.code===problem.misconceptionCode);
-  if(newMisconceptions.length) return {verdict:'new_misconception',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions};
-  if(sameMisconception) return {verdict:'still_present',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[]};
-  if(correct && score===1) return {verdict:'repaired',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:[],newMisconceptions:[]};
-  return {verdict:'insufficient_evidence',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[]};
+  const answerEvaluation=evaluateAnswer(problem,answer);
+  if(newMisconceptions.length) return {verdict:'new_misconception',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions,answerCorrect:answerEvaluation.correct};
+  if(sameMisconception) return {verdict:'still_present',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:answerEvaluation.correct};
+  if(answerEvaluation.correct && score===1) return {verdict:'repaired',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:[],newMisconceptions:[],answerCorrect:true};
+  return {verdict:'insufficient_evidence',checkpointScore:score,matchedCheckpoints:matched,missingCheckpoints:missing,newMisconceptions:[],answerCorrect:answerEvaluation.correct};
 }
