@@ -3,7 +3,7 @@ import { LearningEngine } from './learning-engine.js';
 import { LearningStore } from './store.js';
 import { getRemediationProblem } from './interventions.js';
 import { getReviewProblemForConcept } from './reviews.js';
-import { validateCurriculum } from './curriculum.js';
+import { getConcept, validateCurriculum } from './curriculum.js';
 
 validateCurriculum();
 const store = new LearningStore();
@@ -35,6 +35,23 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
     else if (req.method === 'GET' && url.pathname === '/v1/intervention') {
       const id = student(url.searchParams.get('student')); const intervention = engine.nextIntervention(id);
       result = json(200, intervention ? { intervention, problem: getRemediationProblem(intervention.problemId), snapshot: engine.snapshot(id) } : { intervention: null, snapshot: engine.snapshot(id) });
+    } else if (req.method === 'POST' && url.pathname === '/v1/attempt') {
+      const body = await readBody(req); const id = student(typeof body.student === 'string' ? body.student : null);
+      if (typeof body.conceptId !== 'string') throw new Error('conceptId is required');
+      getConcept(body.conceptId);
+      if (typeof body.reasoning !== 'string') throw new Error('reasoning is required');
+      if (typeof body.correct !== 'boolean') throw new Error('correct must be a boolean');
+      result = json(200, engine.recordStructuredAttempt(id, body.conceptId, {
+        correct: body.correct,
+        reasoning: body.reasoning,
+        answer: typeof body.answer === 'string' ? body.answer : undefined,
+        problemId: typeof body.problemId === 'string' ? body.problemId : null,
+        confidence: typeof body.confidence === 'number' ? body.confidence : null,
+        hintUsed: body.hintUsed === true,
+        durationSeconds: typeof body.durationSeconds === 'number' ? body.durationSeconds : null,
+        misconceptionCodes: Array.isArray(body.misconceptionCodes) ? body.misconceptionCodes.filter((x): x is string => typeof x === 'string') : undefined,
+        misconceptionSeverity: typeof body.misconceptionSeverity === 'number' ? body.misconceptionSeverity : undefined,
+      }));
     } else if (req.method === 'POST' && url.pathname === '/v1/remediation') {
       const body = await readBody(req); const id = student(typeof body.student === 'string' ? body.student : null);
       const interventionId = Number(body.interventionId);
