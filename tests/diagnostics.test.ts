@@ -10,6 +10,14 @@ test('diagnostics infer a physics misconception from reasoning instead of relyin
   assert.match(findings[0]?.remediation ?? '', /velocity|acceleration/i);
 });
 
+test('diagnostics do not misclassify a repaired force-motion explanation', () => {
+  const findings = diagnoseReasoning(
+    'forces',
+    'Constant velocity means acceleration is zero. F_net = ma, so net force is zero. A net force changes velocity by causing acceleration.',
+  );
+  assert.deepEqual(findings, []);
+});
+
 test('diagnostics can combine inferred and explicit evidence without duplicate codes', () => {
   const findings = mergeDiagnosticCodes(
     'forces',
