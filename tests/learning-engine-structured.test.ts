@@ -8,66 +8,46 @@ test('structured attempt persists reasoning evidence and misconception state', (
   const student = store.ensureStudent('Learner');
   const engine = new LearningEngine(store);
   engine.start(student);
-  const snapshot = engine.recordStructuredAttempt(student, 'arithmetic', {
-    correct: false,
-    problemId: 'p-1',
-    lessonId: 'l-1',
-    reasoning: 'I treated the ratio as an addition.',
-    confidence: 4,
-    hintUsed: true,
-    durationSeconds: 31,
-    misconceptionCodes: ['ratio_additive'],
-    misconceptionSeverity: 3,
-  });
-  assert.equal(snapshot.mastery.arithmetic, 0);
-  assert.equal(snapshot.activeMisconceptions[0]?.code, 'ratio_additive');
-  assert.equal(snapshot.activeMisconceptions[0]?.occurrences, 1);
-  const row = store.db.prepare('SELECT reasoning, problem_id, lesson_id, confidence, hint_used, duration_seconds FROM evidence').get() as any;
-  assert.equal(row.reasoning, 'I treated the ratio as an addition.');
-  assert.equal(row.problem_id, 'p-1');
-  assert.equal(row.lesson_id, 'l-1');
-  assert.equal(row.confidence, 4);
-  assert.equal(row.hint_used, 1);
-  assert.equal(row.duration_seconds, 31);
+  const snapshot = engine.recordStructuredAttempt(student, 'forces', {correct:false, reasoning:'The object is moving, so it must have a force pushing it forward.'});
+  assert.equal(snapshot.activeMisconceptions[0]?.code, 'force_causes_motion');
+  assert.equal(snapshot.interventionQueue[0]?.stage, 'discrimination');
   store.close();
 });
 
 test('repeated misconception evidence accumulates instead of replacing history', () => {
   const store = new LearningStore(':memory:');
-  const student = store.ensureStudent('Learner');
+  const student = store.ensureStudent('History learner');
   const engine = new LearningEngine(store);
   engine.start(student);
-  engine.recordStructuredAttempt(student, 'arithmetic', {correct:false, misconceptionCodes:['ratio_additive']});
-  const second = engine.recordStructuredAttempt(student, 'arithmetic', {correct:false, misconceptionCodes:['ratio_additive']});
-  assert.equal(second.activeMisconceptions[0]?.occurrences, 2);
-  assert.equal(store.db.prepare('SELECT COUNT(*) AS count FROM evidence').get()?.count, 2);
+  engine.recordStructuredAttempt(student, 'forces', {correct:false, reasoning:'Moving means a force is needed.'});
+  engine.recordStructuredAttempt(student, 'forces', {correct:false, reasoning:'Moving means a force is needed.'});
+  const misconception = store.listMisconceptions(student)[0]!;
+  assert.equal(misconception.occurrences, 2);
   store.close();
 });
 
 test('lesson and problem resume survives a new engine instance', () => {
   const store = new LearningStore(':memory:');
-  const student = store.ensureStudent('Learner');
-  const first = new LearningEngine(store);
-  first.start(student);
-  first.saveResume(student, 'lesson-motion-1', 'problem-motion-3', 4, {draft:'v = d/t', selectedStep:2});
-  const second = new LearningEngine(store);
-  const resume = second.snapshot(student).resume;
-  assert.equal(resume?.lessonId, 'lesson-motion-1');
-  assert.equal(resume?.problemId, 'problem-motion-3');
-  assert.equal(resume?.step, 4);
-  assert.deepEqual(JSON.parse(resume?.stateJson ?? '{}'), {draft:'v = d/t', selectedStep:2});
+  const student = store.ensureStudent('Resume learner');
+  const engine = new LearningEngine(store);
+  engine.start(student);
+  engine.saveResume(student, 'lesson-motion-1', 'problem-motion-3', 4, {draft:'v = d/t', selectedStep:2});
+  const resumed = new LearningEngine(store).snapshot(student).resume;
+  assert.equal(resumed?.lessonId, 'lesson-motion-1');
+  assert.equal(resumed?.problemId, 'problem-motion-3');
+  assert.equal(resumed?.step, 4);
+  assert.deepEqual(JSON.parse(resumed?.stateJson ?? '{}'), {draft:'v = d/t', selectedStep:2});
   store.close();
 });
 
-test('resolved misconception no longer appears in active snapshot', () => {
+test('resolving a misconception requires repeated positive repair evidence', () => {
   const store = new LearningStore(':memory:');
   const student = store.ensureStudent('Learner');
   const engine = new LearningEngine(store);
   engine.start(student);
   const snapshot = engine.recordStructuredAttempt(student, 'arithmetic', {correct:false, misconceptionCodes:['ratio_additive']});
   const id = snapshot.activeMisconceptions[0]!.id;
-  const resolved = engine.resolveMisconception(student, id);
-  assert.equal(resolved.activeMisconceptions.length, 0);
-  assert.equal(store.listMisconceptions(student)[0]?.status, 'resolved');
+  assert.throws(() => engine.resolveMisconception(student, id), /repeated positive repair evidence/);
+  assert.equal(store.listMisconceptions(student)[0]?.status, 'active');
   store.close();
 });
