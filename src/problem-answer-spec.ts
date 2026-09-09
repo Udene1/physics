@@ -12,7 +12,9 @@ function numberMatches(text: string, expected: number, tolerance: number, unit?:
   const valueMatch = matches.some(match => Math.abs(Number(match[0]) - expected) <= tolerance);
   if (!valueMatch || !unit) return valueMatch;
   const escapedUnit = unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const unitPattern = unit === 'm/s²' ? /m\s*\/\s*s(?:\^?2|²)/i : new RegExp(`\\b${escapedUnit}\\b`, 'i');
+  const unitPattern = unit === 'm/s²'
+    ? /m\s*\/\s*s(?:\^?2|²)/i
+    : new RegExp(`\\b${escapedUnit}\\b`, 'i');
   return unitPattern.test(text);
 }
 
