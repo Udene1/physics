@@ -58,9 +58,15 @@ test('strong demonstrated repair creates performance-based spaced review', () =>
   engine.start(student);
   engine.recordStructuredAttempt(student, 'forces', { correct:false, reasoning:'Moving means a force is needed.' });
   const discrimination = engine.nextIntervention(student)!;
-  engine.submitRemediationAttempt(student, discrimination.id, { correct:true, reasoning:'Constant velocity means acceleration is zero. F_net = ma, so net force is zero. A net force changes velocity by causing acceleration.', answer:'0 N' });
+  const discriminationResult = engine.submitRemediationAttempt(student, discrimination.id, { correct:true, reasoning:'Constant velocity means acceleration is zero. F_net = ma, so net force is zero. A net force changes velocity by causing acceleration.', answer:'0 N' });
+  assert.equal(discriminationResult.evaluation.verdict, 'repaired');
   const transfer = engine.nextIntervention(student)!;
+  assert.equal(transfer.stage, 'transfer');
+  assert.equal(transfer.problemId, 'force-motion-transfer-1');
   const result = engine.submitRemediationAttempt(student, transfer.id, { correct:true, reasoning:'F_net = ma gives a = 4/2 = 2 m/s² east. Then v = u + at = 3 + 2(2) = 7 m/s east. The force changes velocity through acceleration.', answer:'2 m/s² east; 7 m/s east' });
+  assert.equal(result.evaluation.answerCorrect, true);
+  assert.deepEqual(result.evaluation.missingCheckpoints, []);
+  assert.deepEqual(result.evaluation.newMisconceptions, []);
   assert.equal(result.evaluation.verdict, 'repaired');
   const reviews = store.listDueReviews(student, new Date(Date.now() + 2 * 86400000).toISOString());
   assert.equal(reviews.length, 1);
