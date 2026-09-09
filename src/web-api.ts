@@ -26,9 +26,9 @@ function readBody(req: import('node:http').IncomingMessage): Promise<Record<stri
   });
 }
 async function route(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
+  let result = json(500, { error: 'request failed' });
   try {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
-    let result;
     if (req.method === 'GET' && url.pathname === '/health') result = json(200, { status: 'ok', service: 'vita-adaptive-engine' });
     else if (req.method === 'GET' && url.pathname === '/v1/snapshot') { const id = student(url.searchParams.get('student')); result = json(200, engine.start(id)); }
     else if (req.method === 'GET' && url.pathname === '/v1/timeline') { const id = student(url.searchParams.get('student')); result = json(200, { events: engine.timeline(id) }); }
