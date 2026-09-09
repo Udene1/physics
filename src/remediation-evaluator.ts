@@ -14,8 +14,8 @@ const CHECKPOINT_PATTERNS:Record<string,RegExp[]> = {
   heat:[/heat.*transfer/i,/energy.*transfer.*temperature/i,/temperature difference.*transfer/i],
   interaction:[/force.*interaction/i],
   work:[/work.*energy.*transfer/i,/work.*force.*displacement/i],
-  direction:[/opposite.*direction/i,/direction.*(signed|vector)/i,/west.*negative/i,/east.*positive/i],
-  result:[/4\s*n.*east/i,/4\s*newton.*east/i,/net force.*4/i],
+  direction:[/opposite.*direction/i,/direction.*(signed|vector)/i,/west.*negative/i,/east.*positive/i,/perpendicular.*vector/i,/direction.*matter/i],
+  result:[/4\s*n.*east/i,/4\s*newton.*east/i,/net force.*4/i,/5\s*n(?![a-z]).*(north|east|northeast)/i,/13\s*n(?![a-z]).*(north|east|northeast)/i,/northeast/i,/north of east/i],
   scale:[/multiply.*2/i,/doubl/i,/scale factor.*2/i],
   relationship:[/ratio.*multiplicative/i,/multiplicative.*ratio/i,/same.*scale factor/i],
 };
