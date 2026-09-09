@@ -25,7 +25,7 @@ if sys.platform == "win32":
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file
 from functools import wraps
 from main import init_agents, handle_message
-from adaptive_bridge import snapshot as adaptive_snapshot, intervention as adaptive_intervention, timeline as adaptive_timeline, submit_remediation as adaptive_submit_remediation, review as adaptive_review, submit_review as adaptive_submit_review
+from adaptive_bridge import snapshot as adaptive_snapshot, intervention as adaptive_intervention, timeline as adaptive_timeline, submit_attempt as adaptive_submit_attempt, submit_remediation as adaptive_submit_remediation, review as adaptive_review, submit_review as adaptive_submit_review
 
 try:
     from tools.pdf_generator import generate_student_report
@@ -152,6 +152,22 @@ def adaptive_timeline_route():
         return jsonify(adaptive_timeline(session['nickname']))
     except Exception as e:
         return jsonify({"error": str(e)}), 503
+
+
+@app.route('/adaptive/attempt', methods=['POST'])
+@login_required
+def adaptive_attempt_route():
+    data = request.json or {}
+    if not isinstance(data.get('conceptId'), str) or not data['conceptId'].strip():
+        return jsonify({"error": "conceptId is required"}), 400
+    if not isinstance(data.get('reasoning'), str):
+        return jsonify({"error": "reasoning is required"}), 400
+    if not isinstance(data.get('correct'), bool):
+        return jsonify({"error": "correct must be a boolean"}), 400
+    try:
+        return jsonify(adaptive_submit_attempt(session['nickname'], data['conceptId'], data['correct'], data['reasoning'], data.get('answer'), data.get('problemId'), data.get('confidence'), bool(data.get('hintUsed')), data.get('durationSeconds'), data.get('misconceptionCodes')))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route('/adaptive/remediation', methods=['POST'])
