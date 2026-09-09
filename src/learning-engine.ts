@@ -1,5 +1,6 @@
 import { chooseNextPhysicsConcept, getConcept, missingRequirements } from './curriculum.js';
-import { EvidenceInput, LearningStore, MisconceptionRecord, ResumeState } from './store.js';
+import { LearningStore } from './store.js';
+import type { EvidenceInput, MisconceptionRecord, ResumeState } from './store.js';
 
 export type LearningStatus = 'new' | 'diagnostic' | 'learning';
 export interface LearnerSnapshot { studentId:number; status:LearningStatus; currentConcept:string|null; nextConcept:string|null; mastery:Record<string,number>; missingRequirements:string[]; activeMisconceptions:MisconceptionRecord[]; resume:ResumeState|undefined; }
@@ -31,7 +32,17 @@ export class LearningEngine {
   }
   recordStructuredAttempt(studentId:number, conceptId:string, input:AttemptInput): LearnerSnapshot {
     getConcept(conceptId);
-    const evidenceId = this.store.addEvidence(studentId, conceptId, {kind:'attempt', value:input.correct ? 1 : 0, note:input.note, lessonId:input.lessonId, problemId:input.problemId, reasoning:input.reasoning, confidence:input.confidence, hintUsed:input.hintUsed, durationSeconds:input.durationSeconds});
+    const evidence: EvidenceInput = {
+      kind:'attempt', value:input.correct ? 1 : 0,
+      ...(input.note !== undefined ? {note:input.note} : {}),
+      ...(input.lessonId !== undefined ? {lessonId:input.lessonId} : {}),
+      ...(input.problemId !== undefined ? {problemId:input.problemId} : {}),
+      ...(input.reasoning !== undefined ? {reasoning:input.reasoning} : {}),
+      ...(input.confidence !== undefined ? {confidence:input.confidence} : {}),
+      ...(input.hintUsed !== undefined ? {hintUsed:input.hintUsed} : {}),
+      ...(input.durationSeconds !== undefined ? {durationSeconds:input.durationSeconds} : {}),
+    };
+    const evidenceId = this.store.addEvidence(studentId, conceptId, evidence);
     this.store.recordMastery(studentId, conceptId, input.correct);
     for (const code of input.misconceptionCodes ?? []) this.store.upsertMisconception(studentId, conceptId, code, input.misconceptionSeverity ?? 1, evidenceId);
     this.store.saveSession(studentId, 'learning', conceptId, 0);
