@@ -1,9 +1,10 @@
 import type { DiagnosticFinding } from './diagnostics.js';
+import type { ProblemAnswerSpec } from './problem-answer-spec.js';
 export type InterventionStage='discrimination'|'transfer';
 export type InterventionStatus='queued'|'active'|'completed'|'blocked';
 export type RemediationVerdict='repaired'|'still_present'|'new_misconception'|'insufficient_evidence';
 export interface ReasoningCheckpoint{id:string;label:string;expected:string;}
-export interface RemediationProblem{id:string;misconceptionCode:string;conceptId:string;prerequisiteConceptId:string;stage:InterventionStage;prompt:string;givens:readonly string[];expectedReasoning:readonly string[];checkpoints:readonly ReasoningCheckpoint[];answer:string;}
+export interface RemediationProblem{id:string;misconceptionCode:string;conceptId:string;prerequisiteConceptId:string;stage:InterventionStage;prompt:string;givens:readonly string[];expectedReasoning:readonly string[];checkpoints:readonly ReasoningCheckpoint[];answer:string;answerSpec?:ProblemAnswerSpec;}
 export interface InterventionPlan{misconceptionCode:string;strategy:string;prerequisiteConceptId:string;problems:readonly RemediationProblem[];}
 const PROBLEMS:readonly RemediationProblem[]=[
 {id:'force-motion-discrimination-1',misconceptionCode:'force_causes_motion',conceptId:'forces',prerequisiteConceptId:'motion',stage:'discrimination',prompt:'A hockey puck slides across level, nearly frictionless ice at constant velocity. What is the net horizontal force on the puck? Explain why the puck can keep moving even though the net force is zero.',givens:['Straight-line motion.','Constant velocity.','Negligible horizontal friction.'],expectedReasoning:['Constant velocity means zero acceleration.','Use F_net = ma.','Net force is zero.','Force changes velocity through acceleration; it does not sustain constant velocity.'],checkpoints:[{id:'velocity',label:'Velocity',expected:'Constant velocity means acceleration is zero.'},{id:'net-force',label:'Net force',expected:'Zero acceleration implies zero net force.'},{id:'causation',label:'Causal model',expected:'Net force changes velocity; it is not required to sustain constant velocity.'}],answer:'The net horizontal force is 0 N because constant velocity means zero acceleration. Motion does not require a continuing net force.'},
