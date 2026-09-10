@@ -1,5 +1,10 @@
 CREATE OR REPLACE FUNCTION vita_prevent_learning_event_mutation() RETURNS trigger AS $$
 BEGIN
+  -- Student deletion intentionally cascades through the ledger. Direct event
+  -- mutation remains forbidden, while referential cleanup remains possible.
+  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
+    RETURN OLD;
+  END IF;
   RAISE EXCEPTION 'learning_events is append-only; event mutation is not permitted';
 END;
 $$ LANGUAGE plpgsql;
