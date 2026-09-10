@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createPostgresPool } from '../src/infrastructure/postgres.js';
 import { PostgresLearningStore } from '../src/infrastructure/postgres-store.js';
 
-test('PostgreSQL review outcome rolls back every state change on failure', async (t) => {
+test('PostgreSQL review outcome rolls back every state change on constraint failure', async (t) => {
   if (!process.env.DATABASE_URL) return t.skip('DATABASE_URL is required for PostgreSQL integration tests');
   const pool = createPostgresPool();
   const store = new PostgresLearningStore(pool);
@@ -13,19 +13,22 @@ test('PostgreSQL review outcome rolls back every state change on failure', async
     const evidenceId = await store.addEvidence(studentId, 'forces', { kind: 'attempt', value: 0, note: 'seed' });
     const misconception = await store.upsertMisconception(studentId, 'forces', 'force-causes-motion', 3, evidenceId);
     const review = await store.scheduleReview(studentId, 'forces', 1, new Date('2026-01-01T00:00:00Z'));
-    const before = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
+    const beforeEvidence = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
+    const beforeMastery = await store.query('SELECT attempts,correct,score FROM mastery WHERE student_id=$1 AND concept_id=$2', [studentId, 'forces']);
     await assert.rejects(
       store.recordReviewOutcomeAtomic!({
         studentId, conceptId: 'forces', problemId: 'force-review-1',
         evidence: { kind: 'review_attempt', value: 1, note: 'answer', reasoning: 'F=ma' },
-        outcome: 'retained', checkpointScore: 1, correct: true,
+        outcome: 'retained', checkpointScore: 2, correct: true,
         misconceptionId: misconception.id, misconceptionVerdict: 'repaired',
         referenceTime: new Date('2026-01-02T00:00:00Z'),
       }),
-      /relation .*does_not_exist|undefined/i,
+      /review_attempts_checkpoint_score_check/i,
     );
-    const after = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
-    assert.equal(Number(after.rows[0].count), Number(before.rows[0].count));
+    const afterEvidence = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
+    assert.equal(Number(afterEvidence.rows[0].count), Number(beforeEvidence.rows[0].count));
+    const afterMastery = await store.query('SELECT attempts,correct,score FROM mastery WHERE student_id=$1 AND concept_id=$2', [studentId, 'forces']);
+    assert.deepEqual(afterMastery.rows, beforeMastery.rows);
     const attempts = await store.query('SELECT COUNT(*)::int AS count FROM review_attempts WHERE student_id=$1', [studentId]);
     assert.equal(Number(attempts.rows[0].count), 0);
     const currentReview = (await store.listDueReviews(studentId, '2026-01-03T00:00:00Z')).find(x => x.conceptId === review.conceptId);
