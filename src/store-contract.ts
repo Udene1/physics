@@ -1,26 +1,17 @@
 import type { EvidenceInput, InterventionRecord, MisconceptionRecord, MisconceptionState, ResumeState, ReviewRecord } from './store-types.js';
 
 export interface AtomicRemediationInput {
-  studentId: number;
-  interventionId: number;
-  interventionMisconceptionId: number;
-  conceptId: string;
-  problemId: string;
-  evidence: EvidenceInput;
-  verdict: string;
-  checkpointScore: number;
-  correct: boolean;
-  signalMisconceptionId: number | null;
-  signalVerdict: string;
-  completeIntervention: boolean;
-  resolveMisconception: boolean;
-  transfer?: {
-    problemId: string;
-    prerequisiteConceptId: string;
-    strategy: string;
-  };
-  reviewScore?: number;
-  reviewAt?: Date;
+  studentId: number; interventionId: number; interventionMisconceptionId: number; conceptId: string; problemId: string;
+  evidence: EvidenceInput; verdict: string; checkpointScore: number; correct: boolean;
+  signalMisconceptionId: number | null; signalVerdict: string; completeIntervention: boolean; resolveMisconception: boolean;
+  transfer?: { problemId: string; prerequisiteConceptId: string; strategy: string };
+  reviewScore?: number; reviewAt?: Date;
+}
+
+export interface AtomicReviewInput {
+  studentId: number; conceptId: string; problemId: string; evidence: EvidenceInput;
+  outcome: string; checkpointScore: number; correct: boolean; misconceptionId: number | null;
+  misconceptionVerdict: string; referenceTime: Date;
 }
 
 export interface LearningStoreContract {
@@ -34,6 +25,7 @@ export interface LearningStoreContract {
   addEvidence(studentId:number,conceptId:string,input:EvidenceInput): Promise<number>;
   recordAttemptEvidenceAndMastery?(studentId:number,conceptId:string,input:EvidenceInput,correct:boolean): Promise<number>;
   recordRemediationOutcomeAtomic?(input: AtomicRemediationInput): Promise<number>;
+  recordReviewOutcomeAtomic?(input: AtomicReviewInput): Promise<number>;
   upsertMisconception(studentId:number,conceptId:string,code:string,severity:number,evidenceId:number): Promise<MisconceptionRecord>;
   listMisconceptions(studentId:number,conceptId?:string): Promise<MisconceptionRecord[]>;
   getMisconceptionState(id:number): Promise<MisconceptionState|undefined>;
