@@ -1,20 +1,18 @@
 {
   "name": "vita",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Vita — adaptive physics learning companion",
+  "description": "Vita — evidence-driven adaptive physics learning system",
   "type": "module",
-  "engines": {
-    "node": ">=22"
-  },
+  "engines": { "node": ">=22" },
   "scripts": {
     "build": "tsc",
     "test": "node --import tsx --test tests/**/*.test.ts",
-    "cli": "node dist/index.js"
+    "cli": "node dist/index.js",
+    "db:migrate": "node --import tsx src/infrastructure/migrate.ts",
+    "db:check": "node --import tsx -e \"import {createPostgresPool,assertPostgresReady} from './src/infrastructure/postgres.ts'; const p=createPostgresPool(); await assertPostgresReady(p); await p.end(); console.log('PostgreSQL ready')\""
   },
-  "dependencies": {
-    "pg": "^8.16.3"
-  },
+  "dependencies": { "pg": "^8.16.3" },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "@types/pg": "^8.15.5",
