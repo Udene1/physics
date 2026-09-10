@@ -1,5 +1,28 @@
 import type { EvidenceInput, InterventionRecord, MisconceptionRecord, MisconceptionState, ResumeState, ReviewRecord } from './store-types.js';
 
+export interface AtomicRemediationInput {
+  studentId: number;
+  interventionId: number;
+  interventionMisconceptionId: number;
+  conceptId: string;
+  problemId: string;
+  evidence: EvidenceInput;
+  verdict: string;
+  checkpointScore: number;
+  correct: boolean;
+  signalMisconceptionId: number | null;
+  signalVerdict: string;
+  completeIntervention: boolean;
+  resolveMisconception: boolean;
+  transfer?: {
+    problemId: string;
+    prerequisiteConceptId: string;
+    strategy: string;
+  };
+  reviewScore?: number;
+  reviewAt?: Date;
+}
+
 export interface LearningStoreContract {
   close(): Promise<void>;
   getSession(studentId: number): Promise<{status:string; currentConcept:string|null; diagnosticIndex:number; updatedAt:string}|undefined>;
@@ -10,6 +33,7 @@ export interface LearningStoreContract {
   recordMastery(studentId:number,conceptId:string,correct:boolean): Promise<void>;
   addEvidence(studentId:number,conceptId:string,input:EvidenceInput): Promise<number>;
   recordAttemptEvidenceAndMastery?(studentId:number,conceptId:string,input:EvidenceInput,correct:boolean): Promise<number>;
+  recordRemediationOutcomeAtomic?(input: AtomicRemediationInput): Promise<number>;
   upsertMisconception(studentId:number,conceptId:string,code:string,severity:number,evidenceId:number): Promise<MisconceptionRecord>;
   listMisconceptions(studentId:number,conceptId?:string): Promise<MisconceptionRecord[]>;
   getMisconceptionState(id:number): Promise<MisconceptionState|undefined>;
