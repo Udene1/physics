@@ -1,4 +1,4 @@
-import type { EvidenceInput, InterventionRecord, MasteryRecord, MisconceptionRecord, MisconceptionState, RemediationAttempt, ResumeState, ReviewAttempt, ReviewRecord } from './store-types.js';
+import type { EvidenceInput, InterventionRecord, MisconceptionRecord, MisconceptionState, ResumeState, ReviewRecord } from './store-types.js';
 
 export interface LearningStoreContract {
   close(): Promise<void>;
@@ -9,6 +9,7 @@ export interface LearningStoreContract {
   setMastery(studentId:number,conceptId:string,score:number): Promise<void>;
   recordMastery(studentId:number,conceptId:string,correct:boolean): Promise<void>;
   addEvidence(studentId:number,conceptId:string,input:EvidenceInput): Promise<number>;
+  recordAttemptEvidenceAndMastery?(studentId:number,conceptId:string,input:EvidenceInput,correct:boolean): Promise<number>;
   upsertMisconception(studentId:number,conceptId:string,code:string,severity:number,evidenceId:number): Promise<MisconceptionRecord>;
   listMisconceptions(studentId:number,conceptId?:string): Promise<MisconceptionRecord[]>;
   getMisconceptionState(id:number): Promise<MisconceptionState|undefined>;
