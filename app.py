@@ -25,7 +25,7 @@ if sys.platform == "win32":
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file
 from functools import wraps
 from main import init_agents, handle_message
-from adaptive_bridge import snapshot as adaptive_snapshot, intervention as adaptive_intervention, timeline as adaptive_timeline, practice as adaptive_practice, submit_practice as adaptive_submit_practice, submit_attempt as adaptive_submit_attempt, submit_remediation as adaptive_submit_remediation, review as adaptive_review, submit_review as adaptive_submit_review
+from adaptive_bridge import next_action as adaptive_next_action, snapshot as adaptive_snapshot, intervention as adaptive_intervention, timeline as adaptive_timeline, practice as adaptive_practice, submit_practice as adaptive_submit_practice, submit_attempt as adaptive_submit_attempt, submit_remediation as adaptive_submit_remediation, review as adaptive_review, submit_review as adaptive_submit_review
 
 try:
     from tools.pdf_generator import generate_student_report
@@ -125,6 +125,15 @@ def chat():
         return jsonify({"label": label, "response": response, "backend": backend, "model": model, "streak": stats.get('streak_days', 0), "new_badges": new_badges})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/adaptive/next')
+@login_required
+def adaptive_next_route():
+    try:
+        return jsonify(adaptive_next_action(session['nickname']))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
 
 
 @app.route('/adaptive/snapshot')
