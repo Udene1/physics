@@ -1,7 +1,10 @@
 #!/bin/sh
 set -eu
 
+: "${DATABASE_URL:?DATABASE_URL must be configured for Vita PostgreSQL}"
 npm install --include=dev
+npm run db:migrate
+npm run db:check
 npm run build
 
 node dist/web-api.js &
