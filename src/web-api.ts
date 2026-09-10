@@ -34,7 +34,21 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
     if (req.method === 'GET' && url.pathname === '/health') result = json(200, { status: 'ok', service: 'vita-adaptive-engine' });
     else if (req.method === 'GET' && url.pathname === '/v1/snapshot') { const id = student(url.searchParams.get('student')); result = json(200, engine.start(id)); }
     else if (req.method === 'GET' && url.pathname === '/v1/timeline') { const id = student(url.searchParams.get('student')); result = json(200, { events: engine.timeline(id) }); }
-    else if (req.method === 'GET' && url.pathname === '/v1/practice') {
+    else if (req.method === 'GET' && url.pathname === '/v1/next') {
+      const id = student(url.searchParams.get('student')); const snapshot = engine.start(id);
+      if (snapshot.dueReviews.length) {
+        const review = snapshot.dueReviews[0];
+        result = json(200, { action: 'review', review, problem: getReviewProblemForConcept(review.conceptId), snapshot });
+      } else {
+        const intervention = engine.nextIntervention(id);
+        if (intervention) result = json(200, { action: 'remediation', intervention, problem: getRemediationProblem(intervention.problemId), snapshot: engine.snapshot(id) });
+        else {
+          const current = snapshot.currentConcept ?? snapshot.nextConcept ?? 'forces';
+          const problem = getPracticeProblemForConcept(current);
+          result = json(200, { action: problem ? 'practice' : 'idle', problem: problem ?? null, snapshot });
+        }
+      }
+    } else if (req.method === 'GET' && url.pathname === '/v1/practice') {
       const id = student(url.searchParams.get('student')); const snapshot = engine.start(id);
       const requested = url.searchParams.get('problemId');
       const problem = requested ? getPracticeProblem(requested) : getPracticeProblemForConcept(snapshot.currentConcept ?? snapshot.nextConcept ?? 'forces');
