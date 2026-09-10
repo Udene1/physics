@@ -35,11 +35,9 @@ async function route(req: import('node:http').IncomingMessage, res: import('node
     else if (req.method === 'GET' && url.pathname === '/v1/snapshot') { const id = student(url.searchParams.get('student')); result = json(200, engine.start(id)); }
     else if (req.method === 'GET' && url.pathname === '/v1/timeline') { const id = student(url.searchParams.get('student')); result = json(200, { events: engine.timeline(id) }); }
     else if (req.method === 'GET' && url.pathname === '/v1/next') {
-      const id = student(url.searchParams.get('student')); const snapshot = engine.start(id);
-      if (snapshot.dueReviews.length) {
-        const review = snapshot.dueReviews[0];
-        result = json(200, { action: 'review', review, problem: getReviewProblemForConcept(review.conceptId), snapshot });
-      } else {
+      const id = student(url.searchParams.get('student')); const snapshot = engine.start(id); const review = snapshot.dueReviews[0];
+      if (review) result = json(200, { action: 'review', review, problem: getReviewProblemForConcept(review.conceptId), snapshot });
+      else {
         const intervention = engine.nextIntervention(id);
         if (intervention) result = json(200, { action: 'remediation', intervention, problem: getRemediationProblem(intervention.problemId), snapshot: engine.snapshot(id) });
         else {
