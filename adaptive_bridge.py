@@ -28,6 +28,7 @@ def _request(path, student, method="GET", payload=None):
 
 
 def snapshot(student): return _request("/v1/snapshot", student)
+def next_action(student): return _request("/v1/next", student)
 def intervention(student): return _request("/v1/intervention", student)
 def timeline(student): return _request("/v1/timeline", student)
 def practice(student, problem_id=None):
