@@ -1,0 +1,121 @@
+CREATE TABLE IF NOT EXISTS students (
+  id BIGSERIAL PRIMARY KEY,
+  nickname TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mastery (
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  concept_id TEXT NOT NULL,
+  score DOUBLE PRECISION NOT NULL DEFAULT 0,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  correct INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (student_id, concept_id)
+);
+
+CREATE TABLE IF NOT EXISTS learner_sessions (
+  student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  current_concept TEXT,
+  diagnostic_index INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS evidence (
+  id BIGSERIAL PRIMARY KEY,
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  concept_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  value DOUBLE PRECISION,
+  note TEXT,
+  lesson_id TEXT,
+  problem_id TEXT,
+  reasoning TEXT,
+  confidence DOUBLE PRECISION,
+  hint_used BOOLEAN NOT NULL DEFAULT FALSE,
+  duration_seconds INTEGER,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS misconceptions (
+  id BIGSERIAL PRIMARY KEY,
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  concept_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  severity INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'active',
+  occurrences INTEGER NOT NULL DEFAULT 1,
+  last_evidence_id BIGINT REFERENCES evidence(id),
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (student_id, concept_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS misconception_state (
+  misconception_id BIGINT PRIMARY KEY REFERENCES misconceptions(id) ON DELETE CASCADE,
+  confidence INTEGER NOT NULL DEFAULT 0,
+  positive_evidence INTEGER NOT NULL DEFAULT 0,
+  negative_evidence INTEGER NOT NULL DEFAULT 0,
+  last_verdict TEXT,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS interventions (
+  id BIGSERIAL PRIMARY KEY,
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  misconception_id BIGINT NOT NULL REFERENCES misconceptions(id) ON DELETE CASCADE,
+  concept_id TEXT NOT NULL,
+  prerequisite_concept_id TEXT NOT NULL,
+  problem_id TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  strategy TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS remediation_attempts (
+  id BIGSERIAL PRIMARY KEY,
+  intervention_id BIGINT NOT NULL REFERENCES interventions(id) ON DELETE CASCADE,
+  evidence_id BIGINT NOT NULL REFERENCES evidence(id) ON DELETE CASCADE,
+  verdict TEXT NOT NULL,
+  checkpoint_score DOUBLE PRECISION NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS concept_reviews (
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  concept_id TEXT NOT NULL,
+  due_at TIMESTAMPTZ NOT NULL,
+  interval_days INTEGER NOT NULL DEFAULT 1,
+  streak INTEGER NOT NULL DEFAULT 0,
+  last_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (student_id, concept_id)
+);
+
+CREATE TABLE IF NOT EXISTS review_attempts (
+  id BIGSERIAL PRIMARY KEY,
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  concept_id TEXT NOT NULL,
+  problem_id TEXT NOT NULL,
+  evidence_id BIGINT NOT NULL REFERENCES evidence(id) ON DELETE CASCADE,
+  outcome TEXT NOT NULL,
+  checkpoint_score DOUBLE PRECISION NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS resume_state (
+  student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+  lesson_id TEXT,
+  problem_id TEXT,
+  step INTEGER NOT NULL DEFAULT 0,
+  state_json JSONB,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS evidence_student_created_idx ON evidence(student_id, created_at);
+CREATE INDEX IF NOT EXISTS misconceptions_student_status_idx ON misconceptions(student_id, status);
+CREATE INDEX IF NOT EXISTS interventions_student_status_idx ON interventions(student_id, status);
+CREATE INDEX IF NOT EXISTS concept_reviews_due_idx ON concept_reviews(student_id, due_at);
+CREATE INDEX IF NOT EXISTS review_attempts_student_created_idx ON review_attempts(student_id, created_at);
