@@ -70,8 +70,10 @@ test('PostgreSQL due-review guard prevents concurrent double consumption', async
   const nickname = `review-concurrency-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const studentId = await store.ensureStudent(nickname);
   try {
-    await store.scheduleReview(studentId, 'forces', 1, new Date('2026-01-01T00:00:00Z'));
-    const input = () => ({ studentId, conceptId: 'forces', problemId: 'force-review-1', evidence: { kind: 'review_attempt' as const, value: 1, note: 'answer', reasoning: 'F_net = ma; acceleration changes velocity.' }, outcome: 'retained', checkpointScore: 1, correct: true, misconceptionId: null, misconceptionVerdict: 'retained', referenceTime: new Date('2026-01-02T00:00:00Z') });
+    const referenceTime = new Date();
+    referenceTime.setSeconds(referenceTime.getSeconds() - 5);
+    await store.scheduleReview(studentId, 'forces', 1, new Date(referenceTime.getTime() - 86_400_000));
+    const input = () => ({ studentId, conceptId: 'forces', problemId: 'force-review-1', evidence: { kind: 'review_attempt' as const, value: 1, note: 'answer', reasoning: 'F_net = ma; acceleration changes velocity.' }, outcome: 'retained', checkpointScore: 1, correct: true, misconceptionId: null, misconceptionVerdict: 'retained', referenceTime });
     const results = await Promise.allSettled([store.recordReviewOutcomeAtomic!(input()), store.recordReviewOutcomeAtomic!(input())]);
     assert.equal(results.filter(x => x.status === 'fulfilled').length, 1);
     assert.equal(results.filter(x => x.status === 'rejected').length, 1);
