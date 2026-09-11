@@ -1,49 +1,15 @@
 import type { Pool, PoolClient } from 'pg';
 
-export type LearningArtifactKind = 'lesson' | 'explanation' | 'hint' | 'problem' | 'remediation_problem' | 'review_problem' | 'teacher_summary';
-export type ArtifactValidationStatus = 'unvalidated' | 'validated' | 'rejected';
-export type ArtifactRetentionClass = 'standard' | 'extended' | 'restricted';
-export type ArtifactUsageKind = 'presented' | 'attempted' | 'validated' | 'teacher_reviewed';
-
-export interface GeneratedArtifactInput {
-  studentId?: number | null; artifactKind: LearningArtifactKind; content: unknown; generationContext?: unknown;
-  modelProvider?: string | null; modelName?: string | null; modelVersion?: string | null;
-  promptTemplateVersion?: string | null; curriculumVersion?: string | null;
-  validationStatus?: ArtifactValidationStatus; trainingEligible?: boolean;
-  retentionClass?: ArtifactRetentionClass; expiresAt?: Date | null;
-}
-export interface LearningArtifact {
-  id: number; studentId: number | null; artifactKind: LearningArtifactKind; content: unknown; generationContext: unknown;
-  modelProvider: string | null; modelName: string | null; modelVersion: string | null; promptTemplateVersion: string | null;
-  curriculumVersion: string | null; validationStatus: ArtifactValidationStatus; trainingEligible: boolean;
-  retentionClass: ArtifactRetentionClass; expiresAt: string | null; deletedAt: string | null; createdAt: string;
-}
+export type LearningArtifactKind='lesson'|'explanation'|'hint'|'problem'|'remediation_problem'|'review_problem'|'teacher_summary';
+export type ArtifactValidationStatus='unvalidated'|'validated'|'rejected';
+export type ArtifactRetentionClass='standard'|'extended'|'restricted';
+export type ArtifactUsageKind='presented'|'attempted'|'validated'|'teacher_reviewed';
+export interface GeneratedArtifactInput{studentId?:number|null;artifactKind:LearningArtifactKind;content:unknown;generationContext?:unknown;modelProvider?:string|null;modelName?:string|null;modelVersion?:string|null;promptTemplateVersion?:string|null;curriculumVersion?:string|null;validationStatus?:ArtifactValidationStatus;trainingEligible?:boolean;retentionClass?:ArtifactRetentionClass;expiresAt?:Date|null;}
+export interface LearningArtifact{id:number;studentId:number|null;artifactKind:LearningArtifactKind;content:unknown;generationContext:unknown;modelProvider:string|null;modelName:string|null;modelVersion:string|null;promptTemplateVersion:string|null;curriculumVersion:string|null;validationStatus:ArtifactValidationStatus;trainingEligible:boolean;retentionClass:ArtifactRetentionClass;expiresAt:string|null;deletedAt:string|null;createdAt:string;}
 const isoOrNull=(v:unknown)=>v==null?null:new Date(String(v)).toISOString();
-const toArtifact=(r:Record<string,unknown>):LearningArtifact=>({
-  id:Number(r.id),studentId:r.student_id==null?null:Number(r.student_id),artifactKind:r.artifact_kind as LearningArtifactKind,
-  content:r.content,generationContext:r.generation_context,modelProvider:r.model_provider==null?null:String(r.model_provider),
-  modelName:r.model_name==null?null:String(r.model_name),modelVersion:r.model_version==null?null:String(r.model_version),
-  promptTemplateVersion:r.prompt_template_version==null?null:String(r.prompt_template_version),curriculumVersion:r.curriculum_version==null?null:String(r.curriculum_version),
-  validationStatus:r.validation_status as ArtifactValidationStatus,trainingEligible:Boolean(r.training_eligible),
-  retentionClass:r.retention_class as ArtifactRetentionClass,expiresAt:isoOrNull(r.expires_at),deletedAt:isoOrNull(r.deleted_at),createdAt:new Date(String(r.created_at)).toISOString(),
-});
-async function insertArtifact(client:PoolClient,input:GeneratedArtifactInput){
-  const r=await client.query(`INSERT INTO learning_artifacts
-    (student_id,artifact_kind,content,generation_context,model_provider,model_name,model_version,prompt_template_version,curriculum_version,validation_status,training_eligible,retention_class,expires_at)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,[
-      input.studentId??null,input.artifactKind,JSON.stringify(input.content),JSON.stringify(input.generationContext??{}),input.modelProvider??null,input.modelName??null,input.modelVersion??null,input.promptTemplateVersion??null,input.curriculumVersion??null,input.validationStatus??'unvalidated',input.trainingEligible??false,input.retentionClass??'standard',input.expiresAt??null]);
-  return toArtifact(r.rows[0] as Record<string,unknown>);
-}
-async function emitArtifactEvent(client:PoolClient,artifactValue:LearningArtifact,eventType:string,usageKind?:ArtifactUsageKind,evidenceId?:number|null){
-  await client.query(`INSERT INTO learning_events(student_id,event_type,aggregate_type,aggregate_id,payload) VALUES($1,$2,'learning_artifact',$3,$4)`,[
-    artifactValue.studentId,eventType,String(artifactValue.id),JSON.stringify({artifactKind:artifactValue.artifactKind,usageKind:usageKind??null,evidenceId:evidenceId??null})]);
-}
-export async function recordGeneratedArtifact(pool:Pool,input:GeneratedArtifactInput):Promise<LearningArtifact>{
-  const client=await pool.connect();try{await client.query('BEGIN');const value=await insertArtifact(client,input);await emitArtifactEvent(client,value,'learning_artifact_created');await client.query('COMMIT');return value;}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
-}
-export async function recordArtifactUsage(pool:Pool,artifactId:number,usageKind:ArtifactUsageKind,studentId?:number|null,evidenceId?:number|null):Promise<number>{
-  const client=await pool.connect();try{await client.query('BEGIN');const r=await client.query('SELECT * FROM learning_artifacts WHERE id=$1 AND deleted_at IS NULL',[artifactId]);if(r.rowCount!==1)throw new Error('Learning artifact not found or deleted');const value=toArtifact(r.rows[0] as Record<string,unknown>);const usage=await client.query('INSERT INTO learning_artifact_usage(artifact_id,student_id,evidence_id,usage_kind) VALUES($1,$2,$3,$4) RETURNING id',[artifactId,studentId??value.studentId??null,evidenceId??null,usageKind]);await emitArtifactEvent(client,value,'learning_artifact_used',usageKind,evidenceId);await client.query('COMMIT');return Number(usage.rows[0].id);}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
-}
-export async function recordArtifactAndUsage(pool:Pool,input:GeneratedArtifactInput,usageKind:ArtifactUsageKind,evidenceId?:number|null):Promise<LearningArtifact>{
-  const client=await pool.connect();try{await client.query('BEGIN');const value=await insertArtifact(client,input);await client.query('INSERT INTO learning_artifact_usage(artifact_id,student_id,evidence_id,usage_kind) VALUES($1,$2,$3,$4)',[value.id,value.studentId??null,evidenceId??null,usageKind]);await emitArtifactEvent(client,value,'learning_artifact_created',usageKind,evidenceId);await client.query('COMMIT');return value;}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
-}
+const toArtifact=(r:Record<string,unknown>):LearningArtifact=>({id:Number(r.id),studentId:r.student_id==null?null:Number(r.student_id),artifactKind:r.artifact_kind as LearningArtifactKind,content:r.content,generationContext:r.generation_context,modelProvider:r.model_provider==null?null:String(r.model_provider),modelName:r.model_name==null?null:String(r.model_name),modelVersion:r.model_version==null?null:String(r.model_version),promptTemplateVersion:r.prompt_template_version==null?null:String(r.prompt_template_version),curriculumVersion:r.curriculum_version==null?null:String(r.curriculum_version),validationStatus:r.validation_status as ArtifactValidationStatus,trainingEligible:Boolean(r.training_eligible),retentionClass:r.retention_class as ArtifactRetentionClass,expiresAt:isoOrNull(r.expires_at),deletedAt:isoOrNull(r.deleted_at),createdAt:new Date(String(r.created_at)).toISOString()});
+async function insertArtifact(client:PoolClient,input:GeneratedArtifactInput){const r=await client.query(`INSERT INTO learning_artifacts(student_id,artifact_kind,content,generation_context,model_provider,model_name,model_version,prompt_template_version,curriculum_version,validation_status,training_eligible,retention_class,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,[input.studentId??null,input.artifactKind,JSON.stringify(input.content),JSON.stringify(input.generationContext??{}),input.modelProvider??null,input.modelName??null,input.modelVersion??null,input.promptTemplateVersion??null,input.curriculumVersion??null,input.validationStatus??'unvalidated',input.trainingEligible??false,input.retentionClass??'standard',input.expiresAt??null]);return toArtifact(r.rows[0] as Record<string,unknown>);}
+async function emitArtifactEvent(client:PoolClient,a:LearningArtifact,eventType:string,usageKind?:ArtifactUsageKind,evidenceId?:number|null){if(a.studentId===null)return;await client.query(`INSERT INTO learning_events(student_id,event_type,aggregate_type,aggregate_id,payload) VALUES($1,$2,'learning_artifact',$3,$4)`,[a.studentId,eventType,String(a.id),JSON.stringify({artifactKind:a.artifactKind,usageKind:usageKind??null,evidenceId:evidenceId??null})]);}
+export async function recordGeneratedArtifact(pool:Pool,input:GeneratedArtifactInput):Promise<LearningArtifact>{const client=await pool.connect();try{await client.query('BEGIN');const value=await insertArtifact(client,input);await emitArtifactEvent(client,value,'learning_artifact_created');await client.query('COMMIT');return value;}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}}
+export async function recordArtifactUsage(pool:Pool,artifactId:number,usageKind:ArtifactUsageKind,studentId?:number|null,evidenceId?:number|null):Promise<number>{const client=await pool.connect();try{await client.query('BEGIN');const r=await client.query('SELECT * FROM learning_artifacts WHERE id=$1 AND deleted_at IS NULL',[artifactId]);if(r.rowCount!==1)throw new Error('Learning artifact not found or deleted');const value=toArtifact(r.rows[0] as Record<string,unknown>);const usage=await client.query('INSERT INTO learning_artifact_usage(artifact_id,student_id,evidence_id,usage_kind) VALUES($1,$2,$3,$4) RETURNING id',[artifactId,studentId??value.studentId??null,evidenceId??null,usageKind]);await emitArtifactEvent(client,value,'learning_artifact_used',usageKind,evidenceId);await client.query('COMMIT');return Number(usage.rows[0].id);}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}}
+export async function recordArtifactAndUsage(pool:Pool,input:GeneratedArtifactInput,usageKind:ArtifactUsageKind,evidenceId?:number|null):Promise<LearningArtifact>{const client=await pool.connect();try{await client.query('BEGIN');const value=await insertArtifact(client,input);await client.query('INSERT INTO learning_artifact_usage(artifact_id,student_id,evidence_id,usage_kind) VALUES($1,$2,$3,$4)',[value.id,value.studentId??null,evidenceId??null,usageKind]);await emitArtifactEvent(client,value,'learning_artifact_created',usageKind,evidenceId);await client.query('COMMIT');return value;}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}}
