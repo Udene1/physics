@@ -5,7 +5,7 @@ export interface AtomicRemediationInput {
   evidence: EvidenceInput; verdict: string; checkpointScore: number; correct: boolean;
   signalMisconceptionId: number | null; signalVerdict: string; completeIntervention: boolean; resolveMisconception: boolean;
   transfer?: { problemId: string; prerequisiteConceptId: string; strategy: string } | undefined;
-  reviewScore?: number; reviewAt?: Date;
+  reviewScore?: number | undefined; reviewAt?: Date | undefined;
 }
 
 export interface AtomicReviewInput {
