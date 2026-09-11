@@ -33,7 +33,7 @@ test('generated learning artifacts retain provenance without becoming training d
       validation_status: 'validated',
       training_eligible: false,
       retention_class: 'standard',
-      student_id: studentId,
+      student_id: String(studentId),
     });
 
     const stored = await pool.query('SELECT content,generation_context FROM learning_artifacts WHERE id=$1', [result.rows[0].id]);
