@@ -27,7 +27,16 @@ test('classroom intelligence identifies cohort patterns, attention, and bottlene
     assert.equal(summary.interventionEffectiveness.repairRate, 1); assert.ok(summary.attention.some((x) => x.studentId === studentOne && x.attention === 'high'));
     assert.equal(summary.bottlenecks.length, 1); assert.equal(summary.bottlenecks[0].conceptId, 'forces'); assert.equal(summary.bottlenecks[0].averageMastery, 55);
     assert.match(summary.bottlenecks[0].reason, /below 60%/);
-  } finally { await pool.query('DELETE FROM students WHERE id IN ($1,$2)', [studentOne, studentTwo]); await pool.query('DELETE FROM classrooms WHERE id=$1', [classroomId]); await pool.end(); }
+  } finally {
+    await pool.query('DELETE FROM interventions WHERE student_id IN ($1,$2)', [studentOne, studentTwo]);
+    await pool.query('DELETE FROM concept_reviews WHERE student_id IN ($1,$2)', [studentOne, studentTwo]);
+    await pool.query('DELETE FROM misconceptions WHERE student_id IN ($1,$2)', [studentOne, studentTwo]);
+    await pool.query('DELETE FROM evidence WHERE student_id IN ($1,$2)', [studentOne, studentTwo]);
+    await pool.query('DELETE FROM mastery WHERE student_id IN ($1,$2)', [studentOne, studentTwo]);
+    await pool.query('DELETE FROM students WHERE id IN ($1,$2)', [studentOne, studentTwo]);
+    await pool.query('DELETE FROM classrooms WHERE id=$1', [classroomId]);
+    await pool.end();
+  }
 });
 
 test('classroom enrollment is idempotent', async (t) => {
