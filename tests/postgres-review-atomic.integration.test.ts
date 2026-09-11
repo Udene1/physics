@@ -16,16 +16,7 @@ test('PostgreSQL review outcome rolls back every state change on constraint fail
     const beforeEvidence = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
     const beforeMastery = await store.query('SELECT attempts,correct,score FROM mastery WHERE student_id=$1 AND concept_id=$2', [studentId, 'forces']);
     const beforeEvents = await store.query('SELECT COUNT(*)::int AS count FROM learning_events WHERE student_id=$1', [studentId]);
-    await assert.rejects(
-      store.recordReviewOutcomeAtomic!({
-        studentId, conceptId: 'forces', problemId: 'force-review-1',
-        evidence: { kind: 'review_attempt', value: 1, note: 'answer', reasoning: 'F=ma' },
-        outcome: 'retained', checkpointScore: 2, correct: true,
-        misconceptionId: misconception.id, misconceptionVerdict: 'repaired',
-        referenceTime: new Date('2026-01-02T00:00:00Z'),
-      }),
-      /review_attempts_checkpoint_score_check/i,
-    );
+    await assert.rejects(store.recordReviewOutcomeAtomic!({ studentId, conceptId: 'forces', problemId: 'force-review-1', evidence: { kind: 'review_attempt', value: 1, note: 'answer', reasoning: 'F=ma' }, outcome: 'retained', checkpointScore: 2, correct: true, misconceptionId: misconception.id, misconceptionVerdict: 'repaired', referenceTime: new Date('2026-01-02T00:00:00Z') }), /review_attempts_checkpoint_score_check/i);
     const afterEvidence = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
     assert.equal(Number(afterEvidence.rows[0].count), Number(beforeEvidence.rows[0].count));
     const afterMastery = await store.query('SELECT attempts,correct,score FROM mastery WHERE student_id=$1 AND concept_id=$2', [studentId, 'forces']);
@@ -49,18 +40,11 @@ test('PostgreSQL successful review commits evidence, mastery, review attempt and
   const nickname = `review-commit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const studentId = await store.ensureStudent(nickname);
   try {
+    await store.scheduleReview(studentId, 'forces', 1, new Date('2026-01-01T00:00:00Z'));
     const beforeEvidence = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
     const beforeEvents = await store.query('SELECT COUNT(*)::int AS count FROM learning_events WHERE student_id=$1', [studentId]);
     const beforeMastery = await store.query('SELECT attempts,correct FROM mastery WHERE student_id=$1 AND concept_id=$2', [studentId, 'forces']);
-
-    const attemptId = await store.recordReviewOutcomeAtomic!({
-      studentId, conceptId: 'forces', problemId: 'force-review-1',
-      evidence: { kind: 'review_attempt', value: 1, note: 'answer', reasoning: 'F_net = ma; acceleration changes velocity.' },
-      outcome: 'retained', checkpointScore: 1, correct: true,
-      misconceptionId: null, misconceptionVerdict: 'retained',
-      referenceTime: new Date('2026-01-02T00:00:00Z'),
-    });
-
+    const attemptId = await store.recordReviewOutcomeAtomic!({ studentId, conceptId: 'forces', problemId: 'force-review-1', evidence: { kind: 'review_attempt', value: 1, note: 'answer', reasoning: 'F_net = ma; acceleration changes velocity.' }, outcome: 'retained', checkpointScore: 1, correct: true, misconceptionId: null, misconceptionVerdict: 'retained', referenceTime: new Date('2026-01-02T00:00:00Z') });
     assert.ok(attemptId > 0);
     const afterEvidence = await store.query('SELECT COUNT(*)::int AS count FROM evidence WHERE student_id=$1', [studentId]);
     assert.equal(Number(afterEvidence.rows[0].count), Number(beforeEvidence.rows[0].count) + 1);
