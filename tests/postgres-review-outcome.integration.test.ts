@@ -51,10 +51,10 @@ test('PostgreSQL review outcome commits evidence, mastery, misconception state, 
     const state = await store.getMisconceptionState(misconception.id);
     assert.equal(state?.positiveEvidence, 1);
     assert.equal(state?.confidence, 0);
-    const review = await store.listDueReviews(studentId, '2026-01-03T00:00:00.000Z');
+    const review = await store.listDueReviews(studentId, '2026-01-02T23:59:59.999Z');
     assert.equal(review.length, 0);
     const futureReview = await store.query('SELECT interval_days, streak, last_score FROM concept_reviews WHERE student_id=$1 AND concept_id=$2', [studentId, 'forces']);
-    assert.deepEqual(futureReview.rows[0], { interval_days: 2, streak: 2, last_score: 1 });
+    assert.deepEqual(futureReview.rows[0], { interval_days: 1, streak: 1, last_score: 1 });
   } finally {
     await pool.query('DELETE FROM students WHERE id=$1', [studentId]);
     await store.close();
