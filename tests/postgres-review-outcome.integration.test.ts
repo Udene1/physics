@@ -10,7 +10,8 @@ test('PostgreSQL review outcome commits evidence, mastery, misconception state, 
   const nickname = `review-atomic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const studentId = await store.ensureStudent(nickname);
   try {
-    const misconception = await store.upsertMisconception(studentId, 'forces', 'force_causes_motion', 2, 0);
+    const seedEvidenceId = await store.addEvidence(studentId, 'forces', { kind: 'attempt', value: 0, note: 'initial diagnostic evidence' });
+    const misconception = await store.upsertMisconception(studentId, 'forces', 'force_causes_motion', 2, seedEvidenceId);
     await store.recordMisconceptionSignal(misconception.id, 'still_present');
     await store.scheduleReview(studentId, 'forces', 0, new Date('2026-01-01T00:00:00Z'));
 
@@ -43,16 +44,14 @@ test('PostgreSQL review outcome commits evidence, mastery, misconception state, 
         (SELECT count(*) FROM learning_events WHERE student_id=$1 AND event_type='review.attempted') AS event_count,
         (SELECT count(*) FROM learning_events WHERE student_id=$1 AND event_type='evidence.recorded') AS evidence_event_count`, [studentId]);
     assert.deepEqual(counts.rows[0], {
-      evidence_count: '1', review_count: '1', event_count: '1', evidence_event_count: '1',
+      evidence_count: '1', review_count: '1', event_count: '1', evidence_event_count: '2',
     });
 
-    const mastery = await store.getMastery(studentId);
-    assert.equal(mastery.forces, 100);
+    assert.equal((await store.getMastery(studentId)).forces, 100);
     const state = await store.getMisconceptionState(misconception.id);
     assert.equal(state?.positiveEvidence, 1);
     assert.equal(state?.confidence, 0);
-    const review = await store.listDueReviews(studentId, '2026-01-02T23:59:59.999Z');
-    assert.equal(review.length, 0);
+    assert.equal((await store.listDueReviews(studentId, '2026-01-02T23:59:59.999Z')).length, 0);
     const futureReview = await store.query('SELECT interval_days, streak, last_score FROM concept_reviews WHERE student_id=$1 AND concept_id=$2', [studentId, 'forces']);
     assert.deepEqual(futureReview.rows[0], { interval_days: 1, streak: 1, last_score: 1 });
   } finally {
@@ -80,11 +79,8 @@ test('PostgreSQL review outcome rolls back every side effect on constraint failu
         conceptId: 'forces',
         problemId: 'force-motion-transfer-1',
         evidence: { kind: 'review_attempt', value: 1, problemId: 'force-motion-transfer-1', reasoning: 'rollback' },
-        outcome: 'retained',
-        checkpointScore: 2,
-        correct: true,
-        misconceptionId: null,
-        misconceptionVerdict: 'insufficient_evidence',
+        outcome: 'retained', checkpointScore: 2, correct: true,
+        misconceptionId: null, misconceptionVerdict: 'insufficient_evidence',
         referenceTime: new Date('2026-01-02T00:00:00Z'),
       }),
       /review_attempts_checkpoint_score_check/i,
