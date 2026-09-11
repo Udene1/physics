@@ -13,7 +13,7 @@ test('classroom intelligence identifies cohort patterns, attention, and bottlene
   const classroomId = await createClassroom(pool, 'Founding Physics', `VITA${Date.now()}`);
   try {
     await enrollStudent(pool, classroomId, studentOne); await enrollStudent(pool, classroomId, studentTwo);
-    await pool.query(`INSERT INTO mastery(student_id,concept_id,score,attempts,correct) VALUES($1,'forces',80,5,4),($2,'forces',40,5,2)`, [studentOne, studentTwo]);
+    await pool.query(`INSERT INTO mastery(student_id,concept_id,score,attempts,correct) VALUES($1,'forces',80,5,4),($2,'forces',30,5,2)`, [studentOne, studentTwo]);
     const e1 = Number((await pool.query(`INSERT INTO evidence(student_id,concept_id,kind,value) VALUES($1,'forces','attempt',0) RETURNING id`, [studentOne])).rows[0].id);
     const e2 = Number((await pool.query(`INSERT INTO evidence(student_id,concept_id,kind,value) VALUES($1,'forces','attempt',0) RETURNING id`, [studentTwo])).rows[0].id);
     const m1 = Number((await pool.query(`INSERT INTO misconceptions(student_id,concept_id,code,severity,occurrences,last_evidence_id) VALUES($1,'forces','force-causes-motion',4,3,$2) RETURNING id`, [studentOne, e1])).rows[0].id);
@@ -25,7 +25,7 @@ test('classroom intelligence identifies cohort patterns, attention, and bottlene
     const summary = await getClassroomIntelligence(pool, classroomId);
     assert.equal(summary.students, 2); assert.equal(summary.interventionEffectiveness.attempts, 1); assert.equal(summary.interventionEffectiveness.repaired, 1);
     assert.equal(summary.interventionEffectiveness.repairRate, 1); assert.ok(summary.attention.some((x) => x.studentId === studentOne && x.attention === 'high'));
-    assert.equal(summary.bottlenecks.length, 1); assert.equal(summary.bottlenecks[0].conceptId, 'forces'); assert.equal(summary.bottlenecks[0].averageMastery, 60);
+    assert.equal(summary.bottlenecks.length, 1); assert.equal(summary.bottlenecks[0].conceptId, 'forces'); assert.equal(summary.bottlenecks[0].averageMastery, 55);
     assert.match(summary.bottlenecks[0].reason, /below 60%/);
   } finally { await pool.query('DELETE FROM students WHERE id IN ($1,$2)', [studentOne, studentTwo]); await pool.query('DELETE FROM classrooms WHERE id=$1', [classroomId]); await pool.end(); }
 });
