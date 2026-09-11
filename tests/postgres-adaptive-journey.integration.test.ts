@@ -19,55 +19,30 @@ test('learner moves misconception -> discrimination -> transfer -> repair -> rev
   try {
     const studentId = await store.ensureStudent(nickname);
     await engine.start(studentId);
-    await engine.recordStructuredAttempt(studentId, 'forces', {
-      correct: false,
-      reasoning: 'The cart is moving, so a force is needed to keep it moving.',
-      problemId: 'forces-1',
-      misconceptionCodes: ['force_causes_motion'],
-      misconceptionSeverity: 3,
-    });
-
+    await engine.recordStructuredAttempt(studentId, 'forces', { correct: false, reasoning: 'The cart is moving, so a force is needed to keep it moving.', problemId: 'forces-1', misconceptionCodes: ['force_causes_motion'], misconceptionSeverity: 3 });
     let intervention = await engine.nextIntervention(studentId);
-    assert.ok(intervention);
-    assert.equal(intervention.stage, 'discrimination');
-    assert.equal(intervention.problemId, 'force-motion-discrimination-1');
-
+    assert.ok(intervention); assert.equal(intervention.stage, 'discrimination'); assert.equal(intervention.problemId, 'force-motion-discrimination-1');
     const discrimination = await engine.submitRemediationAttempt(studentId, intervention.id, { reasoning: repairedReasoning, answer: '0 N' });
     assert.equal(discrimination.evaluation.verdict, 'repaired');
     intervention = await engine.nextIntervention(studentId);
-    assert.ok(intervention);
-    assert.equal(intervention.stage, 'transfer');
-    assert.equal(intervention.problemId, 'force-motion-transfer-1');
-
+    assert.ok(intervention); assert.equal(intervention.stage, 'transfer'); assert.equal(intervention.problemId, 'force-motion-transfer-1');
     const transfer = await engine.submitRemediationAttempt(studentId, intervention.id, { reasoning: transferReasoning, answer: '2 m/s² east; 7 m/s east' });
-    assert.equal(transfer.evaluation.verdict, 'repaired');
-    assert.equal(transfer.snapshot.activeMisconceptions.length, 0);
-
+    assert.equal(transfer.evaluation.verdict, 'repaired'); assert.equal(transfer.snapshot.activeMisconceptions.length, 0);
     const resolved = (await store.listMisconceptions(studentId, 'forces')).find(m => m.code === 'force_causes_motion');
-    assert.ok(resolved);
-    assert.equal(resolved.status, 'resolved');
-    const state = await store.getMisconceptionState(resolved.id);
-    assert.ok(state);
-    assert.ok(state.positiveEvidence >= 2);
-    assert.ok(state.confidence <= 30);
+    assert.ok(resolved); assert.equal(resolved.status, 'resolved');
+    const state = await store.getMisconceptionState(resolved.id); assert.ok(state); assert.ok(state.positiveEvidence >= 2); assert.ok(state.confidence <= 30);
 
-    const future = new Date(Date.now() + 370 * 24 * 60 * 60 * 1000);
-    const due = await engine.nextReview(studentId, future);
-    assert.ok(due);
-    assert.equal(due.conceptId, 'forces');
-    const review = await engine.submitReviewAttempt(studentId, { reasoning: transferReasoning, answer: '2 m/s² east; 7 m/s east' }, future);
-    assert.equal(review.outcome, 'retained');
-    assert.ok(review.attemptId > 0);
+    // Simulate the passage of retrieval time by scheduling a review in the past.
+    // The consumption guard intentionally compares the attempt timestamp to due_at.
+    await store.scheduleReview(studentId, 'forces', 1, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000));
+    const due = await engine.nextReview(studentId);
+    assert.ok(due); assert.equal(due.conceptId, 'forces');
+    const review = await engine.submitReviewAttempt(studentId, { reasoning: transferReasoning, answer: '2 m/s² east; 7 m/s east' });
+    assert.equal(review.outcome, 'retained'); assert.ok(review.attemptId > 0);
 
     const events = await pool.query(`SELECT event_type FROM learning_events WHERE student_id=$1 ORDER BY id`, [studentId]);
     const types = events.rows.map(row => String(row.event_type));
-    assert.ok(types.includes('evidence.recorded'));
-    assert.ok(types.includes('misconception.created'));
-    assert.ok(types.includes('intervention.queued'));
-    assert.ok(types.includes('remediation.attempted'));
-    assert.ok(types.includes('intervention.state_changed'));
-    assert.ok(types.includes('misconception.state_changed'));
-    assert.ok(types.includes('review.attempted'));
+    assert.ok(types.includes('evidence.recorded')); assert.ok(types.includes('misconception.created')); assert.ok(types.includes('intervention.queued')); assert.ok(types.includes('remediation.attempted')); assert.ok(types.includes('intervention.state_changed')); assert.ok(types.includes('misconception.state_changed')); assert.ok(types.includes('review.attempted'));
   } finally {
     const student = await pool.query('SELECT id FROM students WHERE nickname=$1', [nickname]);
     if (student.rowCount === 1) await pool.query('DELETE FROM students WHERE id=$1', [Number(student.rows[0].id)]);
