@@ -11,8 +11,8 @@ BEGIN
             jsonb_build_object('problemId',NEW.problem_id,'stage',NEW.stage,'strategy',NEW.strategy,'status',NEW.status));
   ELSIF NEW.status IS DISTINCT FROM OLD.status THEN
     INSERT INTO learning_events (student_id,event_type,aggregate_type,aggregate_id,concept_id,payload)
-    VALUES (NEW.student_id,'intervention.status_changed','intervention',NEW.id::text,NEW.concept_id,
-            jsonb_build_object('problemId',NEW.problem_id,'stage',NEW.stage,'fromStatus',OLD.status,'toStatus',NEW.status));
+    VALUES (NEW.student_id,'intervention.state_changed','intervention',NEW.id::text,NEW.concept_id,
+            jsonb_build_object('problemId',NEW.problem_id,'stage',NEW.stage,'previousStatus',OLD.status,'status',NEW.status));
   END IF;
   RETURN NEW;
 END;
@@ -34,8 +34,8 @@ BEGIN
             jsonb_build_object('code',NEW.code,'severity',NEW.severity,'status',NEW.status));
   ELSIF NEW.status IS DISTINCT FROM OLD.status THEN
     INSERT INTO learning_events (student_id,event_type,aggregate_type,aggregate_id,concept_id,payload)
-    VALUES (NEW.student_id,'misconception.status_changed','misconception',NEW.id::text,NEW.concept_id,
-            jsonb_build_object('code',NEW.code,'fromStatus',OLD.status,'toStatus',NEW.status));
+    VALUES (NEW.student_id,'misconception.state_changed','misconception',NEW.id::text,NEW.concept_id,
+            jsonb_build_object('code',NEW.code,'previousStatus',OLD.status,'status',NEW.status));
   END IF;
   RETURN NEW;
 END;
