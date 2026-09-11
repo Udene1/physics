@@ -15,13 +15,7 @@ export interface ClassroomIntelligence {
     insufficientEvidence: number;
     repairRate: number | null;
   };
-  attention: Array<{
-    studentId: number;
-    attention: 'high' | 'medium';
-    reasons: string[];
-    activeMisconceptions: number;
-    dueReviews: number;
-  }>;
+  attention: Array<{ studentId: number; attention: 'high' | 'medium'; reasons: string[]; activeMisconceptions: number; dueReviews: number }>;
 }
 
 const number = (value: unknown) => Number(value ?? 0);
@@ -32,31 +26,27 @@ export async function getClassroomIntelligence(pool: Pool, classroomId: number):
 
   const [roster, mastery, misconceptions, remediation, attention] = await Promise.all([
     pool.query('SELECT student_id FROM classroom_students WHERE classroom_id=$1 ORDER BY student_id', [classroomId]),
-    pool.query(`
-      SELECT m.concept_id, AVG(m.score)::double precision AS average_score,
-             COUNT(*) FILTER (WHERE m.attempts > 0)::int AS learners_attempted
+    pool.query(`SELECT m.concept_id, AVG(m.score)::double precision AS average_score,
+      COUNT(*) FILTER (WHERE m.attempts > 0)::int AS learners_attempted
       FROM classroom_students cs JOIN mastery m ON m.student_id=cs.student_id
       WHERE cs.classroom_id=$1 GROUP BY m.concept_id ORDER BY m.concept_id`, [classroomId]),
-    pool.query(`
-      SELECT m.code, m.concept_id, COUNT(DISTINCT m.student_id)::int AS affected_learners,
-             SUM(m.occurrences)::int AS total_occurrences,
-             AVG(COALESCE(ms.confidence,0))::double precision AS average_confidence
+    pool.query(`SELECT m.code, m.concept_id, COUNT(DISTINCT m.student_id)::int AS affected_learners,
+      SUM(m.occurrences)::int AS total_occurrences, AVG(COALESCE(ms.confidence,0))::double precision AS average_confidence
       FROM classroom_students cs JOIN misconceptions m ON m.student_id=cs.student_id
       LEFT JOIN misconception_state ms ON ms.misconception_id=m.id
       WHERE cs.classroom_id=$1 AND m.status='active'
       GROUP BY m.code,m.concept_id ORDER BY affected_learners DESC,total_occurrences DESC`, [classroomId]),
-    pool.query(`
-      SELECT ra.verdict, COUNT(*)::int AS count
-      FROM classroom_students cs JOIN remediation_attempts ra ON ra.intervention_id IN
-        (SELECT i.id FROM interventions i WHERE i.student_id=cs.student_id)
+    pool.query(`SELECT ra.verdict, COUNT(*)::int AS count
+      FROM classroom_students cs
+      JOIN interventions i ON i.student_id=cs.student_id
+      JOIN remediation_attempts ra ON ra.intervention_id=i.id
       WHERE cs.classroom_id=$1 GROUP BY ra.verdict`, [classroomId]),
-    pool.query(`
-      SELECT cs.student_id,
-             COUNT(DISTINCT m.id) FILTER (WHERE m.status='active')::int AS active_misconceptions,
-             COUNT(DISTINCT cr.id) FILTER (WHERE cr.due_at<=now())::int AS due_reviews,
-             MAX(m.severity) FILTER (WHERE m.status='active')::int AS max_severity,
-             MAX(COALESCE(ms.confidence,0)) FILTER (WHERE m.status='active')::int AS max_confidence,
-             MAX(m.occurrences) FILTER (WHERE m.status='active')::int AS max_occurrences
+    pool.query(`SELECT cs.student_id,
+      COUNT(DISTINCT m.id) FILTER (WHERE m.status='active')::int AS active_misconceptions,
+      COUNT(DISTINCT cr.concept_id) FILTER (WHERE cr.due_at<=now())::int AS due_reviews,
+      MAX(m.severity) FILTER (WHERE m.status='active')::int AS max_severity,
+      MAX(COALESCE(ms.confidence,0)) FILTER (WHERE m.status='active')::int AS max_confidence,
+      MAX(m.occurrences) FILTER (WHERE m.status='active')::int AS max_occurrences
       FROM classroom_students cs
       LEFT JOIN misconceptions m ON m.student_id=cs.student_id
       LEFT JOIN misconception_state ms ON ms.misconception_id=m.id
@@ -70,31 +60,20 @@ export async function getClassroomIntelligence(pool: Pool, classroomId: number):
   const stillPresent = number(outcomeCounts.get('still_present'));
   const newMisconception = number(outcomeCounts.get('new_misconception'));
   const insufficientEvidence = number(outcomeCounts.get('insufficient_evidence'));
-  const attempts = repaired + stillPresent + newMisconception + insufficientEvidence;
+  const attempts = remediation.rows.reduce((sum, row) => sum + number(row.count), 0);
 
   return {
     classroomId,
-    name: String(classroom.rows[0].name),
-    code: String(classroom.rows[0].code),
-    students: roster.rowCount ?? 0,
+    name: String(classroom.rows[0].name), code: String(classroom.rows[0].code), students: roster.rowCount ?? 0,
     mastery: mastery.rows.map((r) => ({ conceptId: String(r.concept_id), averageScore: number(r.average_score), learnersAttempted: number(r.learners_attempted) })),
     misconceptions: misconceptions.rows.map((r) => ({ code: String(r.code), conceptId: String(r.concept_id), affectedLearners: number(r.affected_learners), totalOccurrences: number(r.total_occurrences), averageConfidence: number(r.average_confidence) })),
-    interventionEffectiveness: {
-      attempts, repaired, stillPresent, newMisconception, insufficientEvidence,
-      repairRate: attempts === 0 ? null : repaired / attempts,
-    },
+    interventionEffectiveness: { attempts, repaired, stillPresent, newMisconception, insufficientEvidence, repairRate: attempts === 0 ? null : repaired / attempts },
     attention: attention.rows.map((r) => {
       const reasons: string[] = [];
       if (number(r.max_confidence) >= 60 || number(r.max_severity) >= 4) reasons.push('high-confidence or high-severity misconception');
       if (number(r.max_occurrences) >= 3) reasons.push('recurring reasoning pattern');
       if (number(r.due_reviews) >= 2) reasons.push('multiple reviews due');
-      return {
-        studentId: number(r.student_id),
-        attention: reasons.length >= 2 ? 'high' as const : 'medium' as const,
-        reasons,
-        activeMisconceptions: number(r.active_misconceptions),
-        dueReviews: number(r.due_reviews),
-      };
+      return { studentId: number(r.student_id), attention: reasons.length >= 2 ? 'high' as const : 'medium' as const, reasons, activeMisconceptions: number(r.active_misconceptions), dueReviews: number(r.due_reviews) };
     }).filter((r) => r.reasons.length > 0),
   };
 }
@@ -105,5 +84,5 @@ export async function createClassroom(pool: Pool, name: string, code: string): P
 }
 
 export async function enrollStudent(pool: Pool, classroomId: number, studentId: number): Promise<void> {
-  await pool.query(`INSERT INTO classroom_students(classroom_id,student_id) VALUES($1,$2) ON CONFLICT(classroom_id,student_id) DO NOTHING`, [classroomId, studentId]);
+  await pool.query('INSERT INTO classroom_students(classroom_id,student_id) VALUES($1,$2) ON CONFLICT(classroom_id,student_id) DO NOTHING', [classroomId, studentId]);
 }
