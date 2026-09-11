@@ -37,8 +37,12 @@ test('PostgreSQL learning event triggers commit with domain writes', async (t) =
     );
     const interventionId = Number(queued.rows[0].id);
 
-    const before = await pool.query('SELECT count(*)::int AS count FROM learning_events WHERE student_id=$1', [studentId]);
-    assert.equal(Number(before.rows[0].count), 1);
+    const before = await pool.query('SELECT event_type FROM learning_events WHERE student_id=$1 ORDER BY id', [studentId]);
+    assert.deepEqual(before.rows.map(row => String(row.event_type)), [
+      'evidence.recorded',
+      'misconception.created',
+      'intervention.queued',
+    ]);
 
     await pool.query(
       `INSERT INTO remediation_attempts(intervention_id,evidence_id,verdict,checkpoint_score)
@@ -51,11 +55,15 @@ test('PostgreSQL learning event triggers commit with domain writes', async (t) =
        FROM learning_events WHERE student_id=$1 ORDER BY id`,
       [studentId],
     );
-    assert.equal(after.rows.length, 2);
-    assert.equal(after.rows[0].event_type, 'evidence.recorded');
-    assert.equal(after.rows[1].event_type, 'remediation.attempted');
-    assert.equal(after.rows[1].aggregate_type, 'remediation_attempt');
-    assert.equal(after.rows[1].payload.verdict, 'still_present');
+    assert.equal(after.rows.length, 4);
+    assert.deepEqual(after.rows.map(row => String(row.event_type)), [
+      'evidence.recorded',
+      'misconception.created',
+      'intervention.queued',
+      'remediation.attempted',
+    ]);
+    assert.equal(after.rows[3].aggregate_type, 'remediation_attempt');
+    assert.equal(after.rows[3].payload.verdict, 'still_present');
   } finally {
     const student = await pool.query('SELECT id FROM students WHERE nickname=$1', [nickname]);
     if (student.rowCount === 1) {
