@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPostgresPool } from '../src/infrastructure/postgres.js';
 import { runMigrations } from '../src/infrastructure/migrate.js';
-import { authorizeClassroom, authorizeStudentInClassroom, createSchool, createStaff, assignStaffToClassroom, createAuthorizedClassroom } from '../src/application/school-authorization.js';
+import { authorizeClassroom, authorizeStudentInClassroom, createSchool, createStaff, createStaffForActor, assignStaffToClassroom, assignStaffToClassroomAsActor, createAuthorizedClassroom, listAuthorizedClassrooms } from '../src/application/school-authorization.js';
 import { enrollStudent } from '../src/application/classroom-intelligence.js';
 
 test('school authorization isolates teachers and permits explicitly shared classes', async (t) => {
@@ -29,6 +29,8 @@ test('school authorization isolates teachers and permits explicitly shared class
     await assert.rejects(() => authorizeClassroom(pool, teacherOtherSchool, classOne), /classroom authorization required/);
     await assert.rejects(() => authorizeStudentInClassroom(pool, teacherA, classTwo, studentId), /classroom authorization required/);
     await assert.rejects(() => authorizeStudentInClassroom(pool, teacherA, classOne, studentId + 999999), /student is not in the authorized classroom/);
+    assert.deepEqual((await listAuthorizedClassrooms(pool, teacherA)).map((x) => x.id), [classOne]);
+    assert.deepEqual((await listAuthorizedClassrooms(pool, deanA)).map((x) => x.id).sort((a, b) => a - b), [classOne, classTwo].sort((a, b) => a - b));
   } finally {
     await pool.query('DELETE FROM students WHERE id=$1', [studentId]);
     await pool.query('DELETE FROM schools WHERE id IN ($1,$2)', [schoolA, schoolB]);
@@ -47,4 +49,26 @@ test('database rejects assigning staff across schools', async (t) => {
   const classroom = await createAuthorizedClassroom(pool, deanA, `Guard Class ${suffix}`, `G${Date.now()}`);
   try { await assert.rejects(() => assignStaffToClassroom(pool, classroom, teacherB), /staff cannot be assigned across schools/); }
   finally { await pool.query('DELETE FROM schools WHERE id IN ($1,$2)', [schoolA, schoolB]); await pool.end(); }
+});
+
+test('school roles enforce management boundaries', async (t) => {
+  if (!process.env.DATABASE_URL) return t.skip('DATABASE_URL is required for PostgreSQL integration tests');
+  const pool = createPostgresPool(); await runMigrations(pool);
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const school = await createSchool(pool, `Roles ${suffix}`, `RO${Date.now()}`);
+  const admin = await createStaff(pool, school, `Admin ${suffix}`, 'admin');
+  const dean = await createStaff(pool, school, `Dean ${suffix}`, 'dean');
+  const teacher = await createStaff(pool, school, `Teacher ${suffix}`, 'teacher');
+  const classroom = await createAuthorizedClassroom(pool, dean, `Managed ${suffix}`, `M${Date.now()}`);
+  try {
+    const createdTeacher = await createStaffForActor(pool, dean, `Second Teacher ${suffix}`, 'teacher');
+    assert.ok(createdTeacher > 0);
+    await assert.rejects(() => createStaffForActor(pool, dean, `Another Dean ${suffix}`, 'dean'), /dean may only create teachers/);
+    await assert.rejects(() => createStaffForActor(pool, teacher, `Blocked ${suffix}`, 'teacher'), /staff management authorization required/);
+    await assignStaffToClassroomAsActor(pool, dean, classroom, teacher);
+    await assert.rejects(() => assignStaffToClassroomAsActor(pool, teacher, classroom, admin), /classroom assignment authorization required/);
+    await assert.rejects(() => assignStaffToClassroomAsActor(pool, dean, classroom, admin), /administrators are not classroom assignees/);
+  } finally {
+    await pool.query('DELETE FROM schools WHERE id=$1', [school]); await pool.end();
+  }
 });
