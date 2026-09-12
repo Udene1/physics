@@ -8,6 +8,7 @@ import { PostgresLearningEngine } from '../src/application/postgres-learning-eng
 const url = process.env.DATABASE_URL;
 const repairedReasoning = 'Constant velocity means zero acceleration. F_net = ma, so net force is 0 N. A net force changes velocity through acceleration; it does not sustain constant velocity.';
 const transferReasoning = 'F_net = ma gives a = 4/2 = 2 m/s² east. Then v = u + at = 3 + 2(2) = 7 m/s east. The force changes velocity through acceleration.';
+const reviewReasoning = 'Choose east as positive and west as negative. F_net = ma gives a = -2 m/s², so the acceleration is 2 m/s² west. Then v = u + at gives v = 0 m/s. The net force changes velocity through acceleration rather than sustaining motion.';
 
 test('learner moves misconception -> discrimination -> transfer -> repair -> review', async (t) => {
   if (!url) { t.skip('DATABASE_URL is required for PostgreSQL integration tests'); return; }
@@ -32,12 +33,10 @@ test('learner moves misconception -> discrimination -> transfer -> repair -> rev
     assert.ok(resolved); assert.equal(resolved.status, 'resolved');
     const state = await store.getMisconceptionState(resolved.id); assert.ok(state); assert.ok(state.positiveEvidence >= 2); assert.ok(state.confidence <= 30);
 
-    // Simulate the passage of retrieval time by scheduling a review in the past.
-    // The consumption guard intentionally compares the attempt timestamp to due_at.
     await store.scheduleReview(studentId, 'forces', 1, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000));
     const due = await engine.nextReview(studentId);
     assert.ok(due); assert.equal(due.conceptId, 'forces');
-    const review = await engine.submitReviewAttempt(studentId, { reasoning: transferReasoning, answer: '2 m/s² east; 7 m/s east' });
+    const review = await engine.submitReviewAttempt(studentId, { reasoning: reviewReasoning, answer: '2 m/s² west; 0 m/s; net force changes velocity rather than sustaining motion' });
     assert.equal(review.outcome, 'retained'); assert.ok(review.attemptId > 0);
 
     const events = await pool.query(`SELECT event_type FROM learning_events WHERE student_id=$1 ORDER BY id`, [studentId]);
