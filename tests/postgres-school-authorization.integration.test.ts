@@ -72,3 +72,20 @@ test('school roles enforce management boundaries', async (t) => {
     await pool.query('DELETE FROM schools WHERE id=$1', [school]); await pool.end();
   }
 });
+
+test('database prevents school drift for assigned staff and blocks admin classroom assignment', async (t) => {
+  if (!process.env.DATABASE_URL) return t.skip('DATABASE_URL is required for PostgreSQL integration tests');
+  const pool = createPostgresPool(); await runMigrations(pool);
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const schoolA = await createSchool(pool, `Drift A ${suffix}`, `DA${Date.now()}`);
+  const schoolB = await createSchool(pool, `Drift B ${suffix}`, `DB${Date.now()}`);
+  const deanA = await createStaff(pool, schoolA, `Drift Dean ${suffix}`, 'dean');
+  const adminA = await createStaff(pool, schoolA, `Drift Admin ${suffix}`, 'admin');
+  const teacherA = await createStaff(pool, schoolA, `Drift Teacher ${suffix}`, 'teacher');
+  const classroom = await createAuthorizedClassroom(pool, deanA, `Drift Class ${suffix}`, `D${Date.now()}`);
+  try {
+    await assignStaffToClassroom(pool, classroom, teacherA);
+    await assert.rejects(() => pool.query('UPDATE school_staff SET school_id=$1 WHERE id=$2', [schoolB, teacherA]), /staff with classroom assignments cannot change schools/);
+    await assert.rejects(() => pool.query('INSERT INTO classroom_staff(classroom_id,staff_id) VALUES($1,$2)', [classroom, adminA]), /administrators cannot be classroom assignees/);
+  } finally { await pool.query('DELETE FROM schools WHERE id IN ($1,$2)', [schoolA, schoolB]); await pool.end(); }
+});
