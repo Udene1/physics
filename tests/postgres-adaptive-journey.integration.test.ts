@@ -4,6 +4,8 @@ import { createPostgresPool } from '../src/infrastructure/postgres.js';
 import { runMigrations } from '../src/infrastructure/migrate.js';
 import { PostgresLearningStore } from '../src/infrastructure/postgres-store.js';
 import { PostgresLearningEngine } from '../src/application/postgres-learning-engine.js';
+import { getReviewProblemForConcept } from '../src/reviews.js';
+import { evaluateRemediation } from '../src/remediation-evaluator.js';
 
 const url = process.env.DATABASE_URL;
 const repairedReasoning = 'Constant velocity means zero acceleration. F_net = ma, so net force is 0 N. A net force changes velocity through acceleration; it does not sustain constant velocity.';
@@ -12,8 +14,7 @@ const reviewReasoning = 'Choose east as positive and west as negative. F_net = m
 
 test('learner moves misconception -> discrimination -> transfer -> repair -> review', async (t) => {
   if (!url) { t.skip('DATABASE_URL is required for PostgreSQL integration tests'); return; }
-  const pool = createPostgresPool();
-  await runMigrations(pool);
+  const pool = createPostgresPool(); await runMigrations(pool);
   const store = new PostgresLearningStore(pool);
   const engine = new PostgresLearningEngine(store);
   const nickname = `journey-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -36,8 +37,12 @@ test('learner moves misconception -> discrimination -> transfer -> repair -> rev
     await store.scheduleReview(studentId, 'forces', 1, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000));
     const due = await engine.nextReview(studentId);
     assert.ok(due); assert.equal(due.conceptId, 'forces');
+    const reviewProblem = getReviewProblemForConcept('forces');
+    assert.ok(reviewProblem);
+    const preflight = evaluateRemediation(reviewProblem, reviewReasoning, '2 m/s² west; 0 m/s; net force changes velocity rather than sustaining motion');
+    assert.equal(preflight.verdict, 'repaired', `review evaluator regression: ${JSON.stringify(preflight)}`);
     const review = await engine.submitReviewAttempt(studentId, { reasoning: reviewReasoning, answer: '2 m/s² west; 0 m/s; net force changes velocity rather than sustaining motion' });
-    assert.equal(review.outcome, 'retained', `review regression: ${JSON.stringify({ outcome: review.outcome, checkpointScore: review.checkpointScore })}`); assert.ok(review.attemptId > 0);
+    assert.equal(review.outcome, 'retained', `review persistence regression: ${JSON.stringify({ outcome: review.outcome, checkpointScore: review.checkpointScore })}`); assert.ok(review.attemptId > 0);
 
     const events = await pool.query(`SELECT event_type FROM learning_events WHERE student_id=$1 ORDER BY id`, [studentId]);
     const types = events.rows.map(row => String(row.event_type));
