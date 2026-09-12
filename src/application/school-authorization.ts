@@ -37,11 +37,33 @@ export async function authorizeStudentInClassroom(pool: Pool, staffId: number, c
 export async function createSchool(pool: Pool, name: string, code: string): Promise<number> {
   const result = await pool.query(`INSERT INTO schools(name,code) VALUES($1,$2) RETURNING id`, [name.trim(), code.trim().toUpperCase()]); return Number(result.rows[0].id);
 }
+
 export async function createStaff(pool: Pool, schoolId: number, displayName: string, role: SchoolRole): Promise<number> {
   const result = await pool.query(`INSERT INTO school_staff(school_id,display_name,role) VALUES($1,$2,$3) RETURNING id`, [schoolId, displayName.trim(), role]); return Number(result.rows[0].id);
 }
-export async function assignStaffToClassroom(pool: Pool, classroomId: number, staffId: number): Promise<void> { await pool.query(`INSERT INTO classroom_staff(classroom_id,staff_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, [classroomId, staffId]); }
+
+export async function createStaffForActor(pool: Pool, actorStaffId: number, displayName: string, role: SchoolRole): Promise<number> {
+  const actor = await getStaffIdentity(pool, actorStaffId);
+  if (actor.role === 'teacher') throw new Error('staff management authorization required');
+  if (actor.role === 'dean' && role !== 'teacher') throw new Error('dean may only create teachers');
+  return createStaff(pool, actor.schoolId, displayName, role);
+}
+
+export async function assignStaffToClassroom(pool: Pool, classroomId: number, staffId: number): Promise<void> {
+  await pool.query(`INSERT INTO classroom_staff(classroom_id,staff_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, [classroomId, staffId]);
+}
+
+export async function assignStaffToClassroomAsActor(pool: Pool, actorStaffId: number, classroomId: number, targetStaffId: number): Promise<void> {
+  const actor = await authorizeClassroom(pool, actorStaffId, classroomId);
+  if (actor.role !== 'admin' && actor.role !== 'dean') throw new Error('classroom assignment authorization required');
+  const target = await getStaffIdentity(pool, targetStaffId);
+  if (target.schoolId !== actor.schoolId) throw new Error('staff must belong to the same school');
+  if (target.role === 'admin') throw new Error('administrators are not classroom assignees');
+  await assignStaffToClassroom(pool, classroomId, targetStaffId);
+}
+
 export async function createAuthorizedClassroom(pool: Pool, staffId: number, name: string, code: string): Promise<number> {
-  const identity = await getStaffIdentity(pool, staffId); if (identity.role !== 'admin' && identity.role !== 'dean') throw new Error('classroom management authorization required');
+  const identity = await getStaffIdentity(pool, staffId);
+  if (identity.role !== 'admin' && identity.role !== 'dean') throw new Error('classroom management authorization required');
   const result = await pool.query(`INSERT INTO classrooms(school_id,name,code) VALUES($1,$2,$3) RETURNING id`, [identity.schoolId, name.trim(), code.trim().toUpperCase()]); return Number(result.rows[0].id);
 }
