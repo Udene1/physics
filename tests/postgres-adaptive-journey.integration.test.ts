@@ -37,7 +37,7 @@ test('learner moves misconception -> discrimination -> transfer -> repair -> rev
     const due = await engine.nextReview(studentId);
     assert.ok(due); assert.equal(due.conceptId, 'forces');
     const review = await engine.submitReviewAttempt(studentId, { reasoning: reviewReasoning, answer: '2 m/s² west; 0 m/s; net force changes velocity rather than sustaining motion' });
-    assert.equal(review.outcome, 'retained'); assert.ok(review.attemptId > 0);
+    assert.equal(review.outcome, 'retained', `review regression: ${JSON.stringify({ outcome: review.outcome, checkpointScore: review.checkpointScore })}`); assert.ok(review.attemptId > 0);
 
     const events = await pool.query(`SELECT event_type FROM learning_events WHERE student_id=$1 ORDER BY id`, [studentId]);
     const types = events.rows.map(row => String(row.event_type));
